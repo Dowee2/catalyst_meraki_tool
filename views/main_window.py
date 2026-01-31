@@ -125,12 +125,13 @@ class MainWindow:
         self.current_view_name = "comparison"
         self.set_status("Comparison Wizard")
 
-    def show_settings(self, settings_view):
+    def show_settings(self, settings_view_factory):
         """
         Show the settings view.
 
         Args:
-            settings_view: The SettingsView instance
+            settings_view_factory: A callable that creates the SettingsView,
+                                   accepting a parent frame as argument
         """
         self._clear_content()
 
@@ -157,9 +158,12 @@ class MainWindow:
             style="Card.TLabel"
         ).pack(side=tk.LEFT, padx=Spacing.LG)
 
-        # Settings content
-        self.settings_view = settings_view
-        settings_view.pack(in_=wrapper, fill=tk.BOTH, expand=True, padx=Spacing.MD)
+        # Settings content frame
+        settings_container = ttk.Frame(wrapper)
+        settings_container.pack(fill=tk.BOTH, expand=True, padx=Spacing.MD)
+
+        # Create the settings view inside the container
+        self.settings_view = settings_view_factory(settings_container)
 
         self.current_view = wrapper
         self.current_view_name = "settings"

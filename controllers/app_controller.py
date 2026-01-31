@@ -70,15 +70,9 @@ class AppController:
             modules=self.modules
         )
 
-        # Create and store the settings view (created once, reused)
-        self._settings_frame = tk.Frame(self.main_window.get_content_frame())
-        self.settings_view = SettingsView(self._settings_frame)
-
-        # Create settings controller
-        self.settings_controller = SettingsController(
-            self.settings_view,
-            self.credentials_model
-        )
+        # Settings view will be created on-demand
+        self.settings_view = None
+        self.settings_controller = None
 
         # Create and show dashboard
         self._create_dashboard()
@@ -134,7 +128,30 @@ class AppController:
 
     def _on_settings_clicked(self):
         """Handle Settings card click on dashboard."""
-        self.main_window.show_settings(self._settings_frame)
+        self.main_window.show_settings(self._create_settings_view)
+
+    def _create_settings_view(self, parent):
+        """
+        Factory function to create the settings view.
+
+        Args:
+            parent: Parent frame for the settings view
+
+        Returns:
+            SettingsView: The created settings view
+        """
+        self.settings_view = SettingsView(parent)
+        self.settings_controller = SettingsController(
+            self.settings_view,
+            self.credentials_model
+        )
+
+        # Set API key if available
+        api_key = os.getenv("MERAKI_DASHBOARD_API_KEY", "") or os.getenv("MERAKI_API_KEY", "")
+        if api_key:
+            self.settings_view.set_api_key(api_key)
+
+        return self.settings_view
 
     def _on_wizard_cancel(self):
         """Handle wizard cancellation."""
@@ -172,8 +189,9 @@ class AppController:
         if not api_key:
             api_key = os.getenv("MERAKI_API_KEY", "")
 
-        # Update settings view with API key
-        self.settings_view.set_api_key(api_key)
+        # Update settings view with API key (if it exists)
+        if self.settings_view:
+            self.settings_view.set_api_key(api_key)
 
         if not api_key:
             # Show API key dialog after a short delay
@@ -183,7 +201,7 @@ class AppController:
         """Show a dialog for entering the API key."""
         dialog = tk.Toplevel(self.root)
         dialog.title("Meraki API Key Required")
-        dialog.geometry("500x500")
+        dialog.geometry("500x350")
         dialog.transient(self.root)
         dialog.grab_set()
 
@@ -240,8 +258,9 @@ class AppController:
         os.environ["MERAKI_DASHBOARD_API_KEY"] = api_key.strip()
         os.environ["MERAKI_API_KEY"] = api_key.strip()
 
-        # Update settings view
-        self.settings_view.set_api_key(api_key.strip())
+        # Update settings view (if it exists)
+        if self.settings_view:
+            self.settings_view.set_api_key(api_key.strip())
 
         # Close dialog
         dialog.destroy()
