@@ -69,11 +69,11 @@ class DashboardView(ttk.Frame):
         cards_frame = ttk.Frame(self)
         cards_frame.pack(fill=tk.BOTH, expand=True, padx=Spacing.XL, pady=Spacing.MD)
 
-        # Configure grid weights for responsive layout
-        cards_frame.columnconfigure(0, weight=1)
-        cards_frame.columnconfigure(1, weight=1)
-        cards_frame.rowconfigure(0, weight=1)
-        cards_frame.rowconfigure(1, weight=1)
+        # Configure grid weights for responsive layout with minimum sizes
+        cards_frame.columnconfigure(0, weight=1, minsize=280)
+        cards_frame.columnconfigure(1, weight=1, minsize=280)
+        cards_frame.rowconfigure(0, weight=1, minsize=200)
+        cards_frame.rowconfigure(1, weight=1, minsize=200)
 
         # Migrate Switch card
         self.migrate_card = TaskCard(

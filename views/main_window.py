@@ -7,59 +7,51 @@ from tkinter import ttk
 
 from config.theme import apply_theme, Colors, Fonts, Spacing
 
+
 class MainWindow:
     """
-    The main application window containing the tab navigation and common elements.
+    The main application window with dashboard-based navigation.
+
+    Replaces the old tab-based interface with a wizard-style flow.
     """
-    
+
     def __init__(self, root):
         """
         Initialize the main window.
-        
+
         Args:
             root: The tk root window
         """
         self.root = root
         self.root.title("Catalyst to Meraki Migration Tool")
-        
+
         # Set the window icon if available
         try:
             self.root.iconbitmap("icon.ico")
         except:
             pass
-        
+
         # Apply theme
         self.style = apply_theme(root)
-        
+
         # Main container
         self.main_frame = ttk.Frame(root, padding=Spacing.MD)
         self.main_frame.pack(fill=tk.BOTH, expand=True)
-        # Add workflow explanation at the top
-        workflow_frame = ttk.LabelFrame(self.main_frame, text="Workflow")
-        workflow_frame.pack(fill=tk.X, padx=Spacing.MD, pady=Spacing.SM)
 
-        # Use a more compact format for the workflow text
-        workflow_text = ("Migration Flow: 1) Convert Switch Config  2) Move Cables  "
-                        "3) Compare Interfaces/MAC Addresses\n"
-                        "Note: Comparison functions can be used independently at any time.")
-        ttk.Label(workflow_frame, text=workflow_text, font=Fonts.SMALL,
-                  style="Card.TLabel").pack(padx=Spacing.MD, pady=Spacing.SM, anchor=tk.W)
-        
-        # Create tab control - AFTER workflow frame is packed
-        self.tab_control = ttk.Notebook(self.main_frame)
-        self.tab_control.pack(fill=tk.BOTH, expand=True)
-        
-        # Create tabs
-        self.tab_convert = ttk.Frame(self.tab_control)
-        self.tab_compare_interface = ttk.Frame(self.tab_control)
-        self.tab_compare_mac = ttk.Frame(self.tab_control)
-        self.tab_settings = ttk.Frame(self.tab_control)
-        
-        self.tab_control.add(self.tab_convert, text="Convert Switch Config")
-        self.tab_control.add(self.tab_compare_interface, text="Compare Interfaces")
-        self.tab_control.add(self.tab_compare_mac, text="Compare MAC Addresses")
-        self.tab_control.add(self.tab_settings, text="Settings")
-        
+        # Content container - holds either dashboard or wizards
+        self.content_frame = ttk.Frame(self.main_frame)
+        self.content_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Current view tracking
+        self.current_view = None
+        self.current_view_name = None
+
+        # View references
+        self.dashboard = None
+        self.conversion_wizard = None
+        self.comparison_wizard = None
+        self.settings_view = None
+
         # Status bar
         self.status_var = tk.StringVar(value="Ready")
         self.status_bar = ttk.Label(
@@ -67,102 +59,131 @@ class MainWindow:
             anchor=tk.W, padding=(Spacing.SM, Spacing.XS),
             background=Colors.BG_CARD, font=Fonts.SMALL)
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-        
-        # Register tab change callback
-        self.tab_control.bind("<<NotebookTabChanged>>", self._on_tab_changed)
-        
-        # Store references to child views
-        self.views = {
-            "convert": None,
-            "interface": None,
-            "mac": None,
-            "settings": None
-        }
-        
+
     def set_status(self, message):
         """
         Set the status bar message.
-        
+
         Args:
             message (str): The message to display
         """
         self.status_var.set(message)
-        
-    def get_current_tab(self):
+
+    def get_content_frame(self):
         """
-        Get the currently selected tab.
-        
+        Get the content frame for placing views.
+
         Returns:
-            str: One of "convert", "interface", "mac", "settings"
+            ttk.Frame: The content frame
         """
-        tab_id = self.tab_control.select()
-        tab_index = self.tab_control.index(tab_id)
-        
-        if tab_index == 0:
-            return "convert"
-        elif tab_index == 1:
-            return "interface"
-        elif tab_index == 2:
-            return "mac"
-        else:
-            return "settings"
-    
-    def get_tab_frame(self, tab_name):
+        return self.content_frame
+
+    def _clear_content(self):
+        """Clear the content frame of all widgets."""
+        for widget in self.content_frame.winfo_children():
+            widget.pack_forget()
+
+    def show_dashboard(self, dashboard_view):
         """
-        Get the frame for a specific tab.
-        
+        Show the dashboard view.
+
         Args:
-            tab_name (str): One of "convert", "interface", "mac", "settings"
-            
+            dashboard_view: The DashboardView instance
+        """
+        self._clear_content()
+        self.dashboard = dashboard_view
+        dashboard_view.pack(in_=self.content_frame, fill=tk.BOTH, expand=True)
+        self.current_view = dashboard_view
+        self.current_view_name = "dashboard"
+        self.set_status("Ready")
+
+    def show_conversion_wizard(self, wizard_view):
+        """
+        Show the conversion wizard.
+
+        Args:
+            wizard_view: The ConversionWizard instance
+        """
+        self._clear_content()
+        self.conversion_wizard = wizard_view
+        wizard_view.pack(in_=self.content_frame, fill=tk.BOTH, expand=True)
+        self.current_view = wizard_view
+        self.current_view_name = "conversion"
+        self.set_status("Migration Wizard")
+
+    def show_comparison_wizard(self, wizard_view):
+        """
+        Show the comparison wizard.
+
+        Args:
+            wizard_view: The ComparisonWizard instance
+        """
+        self._clear_content()
+        self.comparison_wizard = wizard_view
+        wizard_view.pack(in_=self.content_frame, fill=tk.BOTH, expand=True)
+        self.current_view = wizard_view
+        self.current_view_name = "comparison"
+        self.set_status("Comparison Wizard")
+
+    def show_settings(self, settings_view):
+        """
+        Show the settings view.
+
+        Args:
+            settings_view: The SettingsView instance
+        """
+        self._clear_content()
+
+        # Create a wrapper with a back button
+        wrapper = ttk.Frame(self.content_frame)
+        wrapper.pack(fill=tk.BOTH, expand=True)
+
+        # Header with back button
+        header_frame = ttk.Frame(wrapper)
+        header_frame.pack(fill=tk.X, padx=Spacing.MD, pady=Spacing.MD)
+
+        back_btn = ttk.Button(
+            header_frame,
+            text="< Back to Dashboard",
+            style="Secondary.TButton",
+            command=self._on_back_to_dashboard
+        )
+        back_btn.pack(side=tk.LEFT)
+
+        ttk.Label(
+            header_frame,
+            text="Settings",
+            font=Fonts.HEADER,
+            style="Card.TLabel"
+        ).pack(side=tk.LEFT, padx=Spacing.LG)
+
+        # Settings content
+        self.settings_view = settings_view
+        settings_view.pack(in_=wrapper, fill=tk.BOTH, expand=True, padx=Spacing.MD)
+
+        self.current_view = wrapper
+        self.current_view_name = "settings"
+        self.set_status("Settings")
+
+    def _on_back_to_dashboard(self):
+        """Handle back to dashboard button click."""
+        if self._back_to_dashboard_callback:
+            self._back_to_dashboard_callback()
+
+    def set_back_to_dashboard_callback(self, callback):
+        """
+        Set the callback for returning to dashboard.
+
+        Args:
+            callback: Function to call when back button is clicked
+        """
+        self._back_to_dashboard_callback = callback
+
+    def get_current_view_name(self):
+        """
+        Get the name of the current view.
+
         Returns:
-            ttk.Frame: The requested tab frame
+            str: One of "dashboard", "conversion", "comparison", "settings"
         """
-        if tab_name == "convert":
-            return self.tab_convert
-        elif tab_name == "interface":
-            return self.tab_compare_interface
-        elif tab_name == "mac":
-            return self.tab_compare_mac
-        elif tab_name == "settings":
-            return self.tab_settings
-        else:
-            return None
-    
-    def register_view(self, tab_name, view):
-        """
-        Register a view for a tab.
-        
-        Args:
-            tab_name (str): The tab name
-            view: The view object
-        """
-        self.views[tab_name] = view
-    
-    def select_tab(self, tab_name):
-        """
-        Select a specific tab.
-        
-        Args:
-            tab_name (str): One of "convert", "interface", "mac", "settings"
-        """
-        if tab_name == "convert":
-            self.tab_control.select(0)
-        elif tab_name == "interface":
-            self.tab_control.select(1)
-        elif tab_name == "mac":
-            self.tab_control.select(2)
-        elif tab_name == "settings":
-            self.tab_control.select(3)
-    
-    def _on_tab_changed(self, event):
-        """
-        Handle tab change events.
-        
-        Args:
-            event: The tab changed event
-        """
-        current_tab = self.get_current_tab()
-        view = self.views.get(current_tab)
-        
-        if view and hasattr(view, "on_tab_selected"):
-            view.on_tab_selected()
+        return self.current_view_name

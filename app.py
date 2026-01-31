@@ -10,7 +10,7 @@ from controllers.app_controller import AppController
 from config.theme import Colors
 import tkinter as tk
 import ctypes
-import sys[]
+import sys
 import os
 
 # Add the parent directory to the path so we can import our modules
@@ -29,8 +29,8 @@ def main():
     # Create the main application window
     root = tk.Tk()
     root.title("Catalyst to Meraki Migration Tool")
-    root.geometry("1080x800")
-    root.minsize(800, 600)
+    root.geometry("1024x768")
+    root.minsize(900, 650)
     root.configure(bg=Colors.BG_MAIN)
     
     # Create the application controller
