@@ -1,0 +1,290 @@
+import re
+import sys
+import getpass
+import pandas as pd
+import os
+from netmiko import ConnectHandler, NetMikoTimeoutException, NetMikoAuthenticationException
+import meraki
+
+# Suppress warnings related to SSL certificates
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Your Netmiko baseline credentials. These are used to attempt login to the Catalyst switch.
+# Multiple credentials are provided for redundancy in case one fails.
+credentials = []
+failures = []  # To track failed connection attempts
+
+def get_switch_config(target_device):
+    """
+    Retrieves the running configuration from a Catalyst switch (or stacked switches) using Netmiko.
+
+    Args:
+        target_device (dict): Dictionary containing the IP address of the target Catalyst switch.
+
+    Returns:
+        tuple: A tuple containing the configuration (str) and the hostname (str) of the switch.
+    """
+    successful_authentication = False
+    for credential in credentials:
+        try:
+            device = {
+                'device_type': 'cisco_ios',
+                'ip': target_device['IPAddress'],
+                'username': credential['username'],
+                'password': credential['password'],
+                'read_timeout_override': 120,  # Override the default timeout if necessary
+            }
+
+            # Connect to the device and retrieve the configuration
+            with ConnectHandler(**device) as net_connect:
+                successful_authentication = True
+                net_connect.enable()
+                hostname = net_connect.find_prompt().strip('#')
+
+                # Retrieve running configuration
+                config = net_connect.send_command('show running-config')
+                net_connect.save_config()  # Save the configuration to avoid losing changes
+                net_connect.disconnect()
+
+                return config, hostname
+
+        except NetMikoTimeoutException:
+            print(f"Connection timed out for {target_device['IPAddress']}")
+            target_device['Failure'] = 'Connection timed out'
+            failures.append(target_device)
+            return None, None
+
+        except NetMikoAuthenticationException:
+            print(f"Authentication failed for {target_device['IPAddress']} using {credential['username']}")
+            print("Trying next credential...")
+
+        except Exception as error:
+            print(f"Failed to configure {target_device['IPAddress']}: {error}")
+            target_device['Failure'] = "General Error"
+            failures.append(target_device)
+            return None, None
+    
+    if not successful_authentication:
+        print(f"All credentials have failed for {target_device['IPAddress']}")
+        target_device['Failure'] = "Credentials Failure"
+        failures.append(target_device)
+        return None, None
+
+def parse_interfaces(config):
+    """
+    Parses the interface configurations from the Catalyst switch's running config.
+
+    Args:
+        config (str): The running configuration from the Catalyst switch.
+
+    Returns:
+        dict: A dictionary where the keys are interface names and values are configurations.
+    """
+    interfaces = {}
+    interface_sections = re.findall(r'interface (\S+)(.*?)!', config, re.DOTALL)
+    for intf, cfg in interface_sections:
+        interfaces[intf] = cfg
+    return interfaces
+
+def configure_meraki_switch_ports(api_key, meraki_ports_map):
+    """
+    Configures Meraki switch ports (stacked switches included) using the Meraki Dashboard API.
+
+    Args:
+        api_key (str): API key for authenticating with the Meraki Dashboard.
+        meraki_ports_map (dict): A dictionary where keys are Meraki serial numbers and values are lists of port configurations.
+    """
+    dashboard = meraki.DashboardAPI(api_key)
+
+    # Iterate through each Meraki switch serial and update its corresponding ports
+    for serial, ports in meraki_ports_map.items():
+        try:
+            # Retrieve the existing ports on the Meraki switch
+            existing_ports = dashboard.switch.getDeviceSwitchPorts(serial)
+            existing_port_ids = [str(port['portId']) for port in existing_ports]
+        except meraki.APIError as e:
+            print(f"Error retrieving existing ports for switch {serial}: {e}")
+            sys.exit(1)
+
+        # Update switch ports with new configurations
+        for port in ports:
+            if str(port['portId']) not in existing_port_ids:
+                print(f"Port {port['portId']} does not exist on the Meraki switch {serial}.")
+                continue
+            try:
+                dashboard.switch.updateDeviceSwitchPort(
+                    serial,
+                    portId=port['portId'],
+                    name=port['name'],
+                    tags=None,
+                    enabled=port['enabled'],
+                    type=port['type'],
+                    vlan=int(port['vlan']),
+                    voiceVlan=int(port['voiceVlan']) if port['voiceVlan'] else None,
+                    allowedVlans=port['allowedVlans'] if port['type'] == 'trunk' else '1-1000',
+                    poeEnabled=port['poeEnabled'],
+                    isolationEnabled=port['isolationEnabled'],
+                    rstpEnabled=port['rstpEnabled'],
+                    stpGuard=port['stpGuard'],
+                    linkNegotiation=port['linkNegotiation']
+                )
+                print(f"Updated port {port['portId']} on Meraki switch {serial}")
+            except meraki.APIError as e:
+                print(f"Error updating port {port['portId']} on Meraki switch {serial}: {e}")
+                
+def valid_interface(switch_number, group_number, port_number, meraki_serials, access_group_number, intf_name):
+            """
+            Validates the interface based on switch number, group number, and port number.
+
+            Args:
+                switch_number (int): The switch number in the stack.
+                group_number (int): The group number of the port.
+                port_number (int): The port number.
+                meraki_serials (list): List of Meraki serial numbers.
+                access_group_number (int): The switch stack access group number.
+
+            Returns:
+                bool: True if the interface is valid, False otherwise.
+            """
+            if switch_number > len(meraki_serials):
+                print(f"Switch {switch_number} does not have a corresponding Meraki serial; skipping")
+                return False
+            if group_number != access_group_number:
+                print(f"Port {intf_name} is not a valid access port; skipping")
+                return False
+            # if port_number > 48:
+            #     print(f"Port {intf_name} is an uplink port; skipping")
+            #     return False
+            return True
+
+def map_interface_configs(interfaces, meraki_serials, access_group_number = 0):
+    """
+    Maps Catalyst switch (including stacked) interface configurations to Meraki-compatible configurations.
+    This function takes into account that each stack switch corresponds to a Meraki switch based on the list of serials provided.
+
+    Args:
+        interfaces (dict): A dictionary containing the Catalyst switch interfaces and their configurations.
+        meraki_serials (list): A list of Meraki switch serial numbers, where each index corresponds to a Catalyst stack member.
+        access_group_number (int): The switch stack access group number (default is 0). I.E GigabitEthernet 1/0/1. The access group number is 0.
+
+    Returns:
+        dict: A dictionary where the keys are Meraki serial numbers, and the values are lists of Meraki-compatible port configurations.
+    """
+    meraki_ports_map = {serial: [] for serial in meraki_serials}
+    
+    for intf_name, catalyst_port_config in interfaces.items():
+        # Skip non-Ethernet interfaces
+        if not intf_name.startswith('GigabitEthernet'):
+            continue
+
+        # Extract the interface number (e.g., '1/0/48' or '2/0/5' for stacked switches)
+        intf_number_match = re.search(r'GigabitEthernet(.+)', intf_name)
+        if intf_number_match:
+            intf_number = intf_number_match.group(1).strip()
+        else:
+            print(f"Could not extract interface number from {intf_name}")
+            continue
+
+        # Extract the switch number (member of the stack) and port number
+        try:
+            switch_number, group_number , port_number = map(int, intf_number.split('/'))
+        except ValueError:
+            print(f"Invalid interface numbering in {intf_name}")
+            continue
+        
+        if not valid_interface(switch_number, group_number, port_number, meraki_serials, access_group_number, intf_name):
+            continue
+
+        # Get the corresponding Meraki serial based on switch_number (indexing starts from 0)
+        meraki_serial = meraki_serials[switch_number - 1]
+
+        # Build the port configuration for Meraki
+        meraki_port_config = {
+            'portId': port_number,
+            'name': None,
+            'enabled': True,
+            'type': 'access',  # Default to access port
+            'vlan': '1',  # Default VLAN
+            'voiceVlan': None,
+            'allowedVlans': "1-1000",  # Default to all VLANs
+            'poeEnabled': True,  # Assume PoE is enabled
+            'isolationEnabled': False,
+            'rstpEnabled': True,  # Enable RSTP by default
+            'stpGuard': 'disabled',
+            'linkNegotiation': 'Auto negotiate',
+        }
+
+        # Parse configuration settings from Catalyst config
+        if 'shutdown' in catalyst_port_config:
+            meraki_port_config['enabled'] = False
+        if 'description' in catalyst_port_config:
+            description_match = re.search(r'description (.+)', catalyst_port_config)
+            if description_match:
+                meraki_port_config['name'] = description_match.group(1).strip()
+        if 'switchport mode trunk' in catalyst_port_config:
+            meraki_port_config['type'] = 'trunk'
+            allowed_vlans = re.search(r'switchport trunk allowed vlan (.+)', catalyst_port_config)
+            if allowed_vlans:
+                meraki_port_config['allowedVlans'] = allowed_vlans.group(1).strip()
+            else:
+                meraki_port_config['allowedVlans'] = '1-1000'  # Default to all VLANs
+            native_vlan = re.search(r'switchport trunk native vlan (\d+)', catalyst_port_config)
+            if native_vlan:
+                meraki_port_config['vlan'] = native_vlan.group(1)
+        else:
+            access_vlan = re.search(r'switchport access vlan (\d+)', catalyst_port_config)
+            if access_vlan:
+                meraki_port_config['vlan'] = access_vlan.group(1)
+            voice_vlan = re.search(r'switchport voice vlan (\d+)', catalyst_port_config)
+            if voice_vlan:
+                meraki_port_config['voiceVlan'] = voice_vlan.group(1)
+        if 'spanning-tree portfast' in catalyst_port_config:
+            meraki_port_config['rstpEnabled'] = True
+        if 'spanning-tree bpduguard enable' in catalyst_port_config:
+            meraki_port_config['stpGuard'] = 'bpdu guard'
+        if 'spanning-tree guard root' in catalyst_port_config:
+            meraki_port_config['stpGuard'] = 'root guard'
+        if 'power inline never' in catalyst_port_config:
+            meraki_port_config['poeEnabled'] = False
+
+        # Append the port config to the corresponding Meraki switch
+        meraki_ports_map[meraki_serial].append(meraki_port_config)
+
+    return meraki_ports_map
+#############################################################################################################
+#""" MAKE EDITS BELOW THIS LINE """
+###########################################################
+# Main Execution
+def run(meraki_api_key, meraki_cloud_ids, catalyst_ip = None, catalyst_config=None):
+    
+    # Step 1: Get Catalyst Config using your Netmiko baseline
+    if not catalyst_config:
+        target_device = {'IPAddress': catalyst_ip}
+        catalyst_config, hostname = get_switch_config(target_device)
+        if not catalyst_config:
+            print("Failed to retrieve Catalyst configuration.")
+            sys.exit(1)
+        print(f"Catalyst configuration retrieved from {hostname}.")
+
+    # Step 2: Parse Interfaces
+    interfaces = parse_interfaces(catalyst_config)
+    print(f"Parsed Interfaces: {list(interfaces.keys())}")
+
+    # Step 3: Map Interface Configs to Meraki Format
+    meraki_ports_map = map_interface_configs(interfaces, meraki_cloud_ids, access_group_number=0)
+    print("Mapped Catalyst interfaces to Meraki port configurations.")
+
+    # Step 4: Configure Meraki Switch Ports
+    configure_meraki_switch_ports(
+        meraki_api_key,
+        meraki_ports_map
+    )
+    print("Port configurations applied to Meraki switches.")
+
+if __name__ == "__main__":
+    # Example usage
+    catalyst_ip = "10.28.250.3"
+    meraki_api_key = os.getenv("MERAKI_API_KEY")
+    meraki_serials = ["Q5JK-U34X-PU9Z"]
+    run(meraki_api_key, meraki_serials, catalyst_ip=catalyst_ip)
