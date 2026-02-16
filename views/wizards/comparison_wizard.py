@@ -122,9 +122,15 @@ class ComparisonWizard(ttk.Frame):
 
     def _create_capture_step(self, content_frame):
         """Create the capture step UI."""
-        # Source selection: New capture or use saved
+        self._create_source_selection(content_frame)
+        self._create_new_capture_container(content_frame)
+        self._create_saved_capture_container(content_frame)
+        self._refresh_saved_captures()
+
+    def _create_source_selection(self, parent):
+        """Create the data source selection (new vs saved)."""
         source_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="Data Source",
             style="Card.TLabelframe"
         )
@@ -141,7 +147,7 @@ class ComparisonWizard(ttk.Frame):
             variable=self.source_var,
             value='new',
             command=self._on_source_changed
-        ).pack(anchor=tk.W, pady=Spacing.XS)
+        ).pack(side=tk.LEFT, padx=(0, Spacing.LG))
 
         ttk.Radiobutton(
             source_inner,
@@ -149,13 +155,21 @@ class ComparisonWizard(ttk.Frame):
             variable=self.source_var,
             value='saved',
             command=self._on_source_changed
-        ).pack(anchor=tk.W, pady=Spacing.XS)
+        ).pack(side=tk.LEFT)
 
-        # New capture container
-        self.new_capture_frame = ttk.Frame(content_frame, style="Card.TFrame")
+    def _create_new_capture_container(self, parent):
+        """Create the new capture container with all its components."""
+        self.new_capture_frame = ttk.Frame(parent, style="Card.TFrame")
         self.new_capture_frame.pack(fill=tk.X, pady=Spacing.SM)
 
-        # IP Input
+        self._create_ip_input_section()
+        self._create_credentials_section()
+        self._create_compare_options_section()
+        self._create_capture_button_section()
+        self._create_capture_console_section()
+
+    def _create_ip_input_section(self):
+        """Create the IP input field."""
         ip_frame = ttk.Frame(self.new_capture_frame)
         ip_frame.pack(fill=tk.X, pady=Spacing.SM)
 
@@ -166,7 +180,8 @@ class ComparisonWizard(ttk.Frame):
         )
         self.ip_input.pack(fill=tk.X)
 
-        # Credentials section
+    def _create_credentials_section(self):
+        """Create the credentials selection section."""
         cred_frame = ttk.LabelFrame(
             self.new_capture_frame,
             text="Login credentials",
@@ -191,7 +206,8 @@ class ComparisonWizard(ttk.Frame):
             command=self._select_credentials
         ).pack(side=tk.RIGHT)
 
-        # What to compare
+    def _create_compare_options_section(self):
+        """Create the comparison options checkboxes."""
         compare_frame = ttk.LabelFrame(
             self.new_capture_frame,
             text="What to compare",
@@ -217,7 +233,8 @@ class ComparisonWizard(ttk.Frame):
             variable=self.mac_check_var
         ).pack(anchor=tk.W, pady=Spacing.XS)
 
-        # Capture button and console
+    def _create_capture_button_section(self):
+        """Create the capture button and status label."""
         capture_btn_frame = ttk.Frame(self.new_capture_frame)
         capture_btn_frame.pack(fill=tk.X, pady=Spacing.SM)
 
@@ -236,7 +253,8 @@ class ComparisonWizard(ttk.Frame):
         )
         self.capture_status_label.pack(side=tk.LEFT, padx=Spacing.MD)
 
-        # Console for capture output
+    def _create_capture_console_section(self):
+        """Create the capture progress console."""
         console_frame = ttk.LabelFrame(
             self.new_capture_frame,
             text="Capture Progress",
@@ -254,8 +272,9 @@ class ComparisonWizard(ttk.Frame):
         )
         self.capture_console.pack(fill=tk.BOTH, expand=True, padx=Spacing.SM, pady=Spacing.SM)
 
-        # Saved capture container (hidden initially)
-        self.saved_capture_frame = ttk.Frame(content_frame, style="Card.TFrame")
+    def _create_saved_capture_container(self, parent):
+        """Create the saved capture selection container (hidden initially)."""
+        self.saved_capture_frame = ttk.Frame(parent, style="Card.TFrame")
 
         saved_inner = ttk.LabelFrame(
             self.saved_capture_frame,
@@ -276,9 +295,6 @@ class ComparisonWizard(ttk.Frame):
         ttk.Label(saved_content, text="MAC address data:").pack(anchor=tk.W)
         self.mac_capture_combo = ttk.Combobox(saved_content, width=60, state="readonly")
         self.mac_capture_combo.pack(fill=tk.X, pady=Spacing.XS)
-
-        # Populate saved captures
-        self._refresh_saved_captures()
 
     def _on_source_changed(self):
         """Handle source type change."""
@@ -492,9 +508,14 @@ class ComparisonWizard(ttk.Frame):
 
     def _create_meraki_step(self, content_frame):
         """Create the Meraki details step UI."""
-        # Serials section
+        self._create_meraki_serials_section(content_frame)
+        self._create_comparison_summary_section(content_frame)
+        self._update_comparison_summary()
+
+    def _create_meraki_serials_section(self, parent):
+        """Create the Meraki serial numbers input section."""
         serials_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="New Meraki switch serial numbers",
             style="Card.TLabelframe"
         )
@@ -503,7 +524,6 @@ class ComparisonWizard(ttk.Frame):
         serials_inner = ttk.Frame(serials_frame)
         serials_inner.pack(fill=tk.X, padx=Spacing.MD, pady=Spacing.MD)
 
-        # Serials display
         self.serials_display = ttk.Entry(serials_inner, width=50, state="readonly")
         self.serials_display.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -514,7 +534,6 @@ class ComparisonWizard(ttk.Frame):
             command=self._manage_serials
         ).pack(side=tk.LEFT, padx=(Spacing.SM, 0))
 
-        # Info
         InfoBox(
             serials_frame,
             message="Enter the serial number(s) of your new Meraki switch(es). "
@@ -522,9 +541,10 @@ class ComparisonWizard(ttk.Frame):
             box_type='info'
         ).pack(fill=tk.X, padx=Spacing.MD, pady=(0, Spacing.MD))
 
-        # Summary of what will be compared
+    def _create_comparison_summary_section(self, parent):
+        """Create the comparison summary display section."""
         summary_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="Comparison Summary",
             style="Card.TLabelframe"
         )
@@ -537,9 +557,6 @@ class ComparisonWizard(ttk.Frame):
             wraplength=500
         )
         self.comparison_summary.pack(padx=Spacing.MD, pady=Spacing.MD, anchor=tk.W)
-
-        # Update summary
-        self._update_comparison_summary()
 
     def _update_comparison_summary(self):
         """Update the comparison summary display."""
@@ -596,26 +613,31 @@ class ComparisonWizard(ttk.Frame):
 
     def _create_results_step(self, content_frame):
         """Create the results step UI."""
-        # Status label
+        self._create_results_status_section(content_frame)
+        self._create_results_notebook(content_frame)
+        self._create_results_console(content_frame)
+
+    def _create_results_status_section(self, parent):
+        """Create the status label and compare button."""
         self.results_status = ttk.Label(
-            content_frame,
+            parent,
             text="Click 'Compare' to start the comparison",
             style="Card.TLabel",
             font=Fonts.BOLD
         )
         self.results_status.pack(pady=Spacing.SM)
 
-        # Compare button
         self.compare_btn = ttk.Button(
-            content_frame,
+            parent,
             text="Start Comparison",
             style="Primary.TButton",
             command=self._run_comparison
         )
         self.compare_btn.pack(pady=Spacing.SM)
 
-        # Results notebook with tabs
-        self.results_notebook = ttk.Notebook(content_frame)
+    def _create_results_notebook(self, parent):
+        """Create the results notebook with tabs."""
+        self.results_notebook = ttk.Notebook(parent)
         self.results_notebook.pack(fill=tk.BOTH, expand=True, pady=Spacing.SM)
 
         # Interface results tab
@@ -628,9 +650,10 @@ class ComparisonWizard(ttk.Frame):
         self.results_notebook.add(mac_frame, text="Connected Devices")
         self._create_mac_results(mac_frame)
 
-        # Console for comparison output
+    def _create_results_console(self, parent):
+        """Create the results progress console."""
         console_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="Progress",
             style="Card.TLabelframe"
         )

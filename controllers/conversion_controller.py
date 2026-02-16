@@ -43,27 +43,20 @@ class ConversionController:
                 - hostname: Switch hostname (for file source)
                 - credentials: Credential dict with username/password
                 - meraki_serials: List of Meraki serial numbers
-                - switch_type: '2960' or '3850'
             console_widget: Optional widget to display output
         """
-        # Check if API key is set
         api_key = os.getenv("MERAKI_API_KEY") or os.getenv("MERAKI_DASHBOARD_API_KEY")
         if not api_key:
             messagebox.showerror("Error", "Meraki API Key is not set. "
                                "Please set it in the Settings.")
             return
 
-        # Get data from wizard
         source_type = wizard_data.get('source_type', 'ip')
         meraki_serials = wizard_data.get('meraki_serials', [])
-        switch_type = wizard_data.get('switch_type', '2960')
 
         if not meraki_serials:
             messagebox.showerror("Error", "Meraki serial numbers are required.")
             return
-
-        # Determine device_type parameter
-        device_type = 'catalyst_3850' if switch_type == '3850' else 'catalyst_2960'
 
         # Get unified conversion module
         convert_module = self.modules.get(ScriptType.CONVERT)
@@ -79,16 +72,16 @@ class ConversionController:
         if source_type == 'ip':
             self._run_ip_conversion(
                 convert_module, api_key, wizard_data,
-                meraki_serials, device_type, console_widget
+                meraki_serials, console_widget
             )
         else:
             self._run_file_conversion(
                 convert_module, api_key, wizard_data,
-                meraki_serials, device_type, console_widget
+                meraki_serials, console_widget
             )
 
     def _run_ip_conversion(self, convert_module, api_key, wizard_data,
-                           meraki_serials, device_type, console_widget):
+                           meraki_serials, console_widget):
         """
         Run IP-based conversion.
 
@@ -97,7 +90,6 @@ class ConversionController:
             api_key: Meraki API key
             wizard_data: Data from wizard
             meraki_serials: List of Meraki serials
-            device_type: Device type string
             console_widget: Console widget for output
         """
         catalyst_ip = wizard_data.get('catalyst_ip', '')
@@ -120,14 +112,14 @@ class ConversionController:
         # Log to console
         self._append_console(console_widget,
                             f"Connecting to Catalyst switch at {catalyst_ip}...\n")
-        self._append_console(console_widget, f"Device type: {device_type}\n")
+        self._append_console(console_widget,
+                            "Interface format: Auto-detected\n")
 
         def run_conversion():
             convert_module.run(
                 meraki_api_key=api_key,
                 meraki_cloud_ids=meraki_serials,
                 catalyst_ip=catalyst_ip,
-                device_type=device_type,
                 credentials_list=credentials_list
             )
             return None
@@ -141,7 +133,7 @@ class ConversionController:
         )
 
     def _run_file_conversion(self, convert_module, api_key, wizard_data,
-                             meraki_serials, device_type, console_widget):
+                             meraki_serials, console_widget):
         """
         Run file-based conversion.
 
@@ -150,7 +142,6 @@ class ConversionController:
             api_key: Meraki API key
             wizard_data: Data from wizard
             meraki_serials: List of Meraki serials
-            device_type: Device type string
             console_widget: Console widget for output
         """
         config_file = wizard_data.get('config_file_path', '')
@@ -175,14 +166,14 @@ class ConversionController:
         # Log to console
         self._append_console(console_widget,
                             f"Converting configuration for {hostname}...\n")
-        self._append_console(console_widget, f"Device type: {device_type}\n")
+        self._append_console(console_widget,
+                            "Interface format: Auto-detected\n")
 
         def run_conversion():
             convert_module.run(
                 meraki_api_key=api_key,
                 meraki_cloud_ids=meraki_serials,
-                catalyst_config=catalyst_config,
-                device_type=device_type
+                catalyst_config=catalyst_config
             )
             return None
 

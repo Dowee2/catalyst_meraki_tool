@@ -26,21 +26,6 @@ class ScriptType(Enum):
         """Return the script module name."""
         return self.value
 
-    @classmethod
-    def from_device_type(cls, device_type: str) -> 'ScriptType':
-        """
-        Get conversion script type for a device.
-
-        Args:
-            device_type: Device type string ('2960', '3850', etc.)
-
-        Returns:
-            ScriptType.CONVERT (unified conversion script handles all device types)
-
-        """
-        # Unified conversion script handles all device types
-        return cls.CONVERT
-
     @property
     def module_name(self) -> str:
         """Get the module name for this script type."""

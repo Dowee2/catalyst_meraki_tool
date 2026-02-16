@@ -6,7 +6,50 @@ Consolidates regex patterns scattered across multiple script files.
 """
 
 import re
-from typing import Optional, Tuple, Dict
+from enum import Enum
+from dataclasses import dataclass
+from typing import Optional, Tuple
+
+
+# All known Ethernet prefixes, sorted longest-first to avoid partial regex matches
+ETHERNET_PREFIXES = (
+    'TwentyFiveGigE',
+    'FortyGigabitEthernet',
+    'HundredGigE',
+    'TenGigabitEthernet',
+    'GigabitEthernet',
+    'FastEthernet',
+    'Twe',
+    'Fo',
+    'Hu',
+    'Te',
+    'Gi',
+    'Fa',
+)
+
+_PREFIX_GROUP = '(?:' + '|'.join(ETHERNET_PREFIXES) + ')'
+
+# 3-part: e.g. GigabitEthernet1/0/1
+PATTERN_THREE_PART = re.compile(_PREFIX_GROUP + r'(\d+)/(\d+)/(\d+)')
+
+# 2-part: e.g. GigabitEthernet0/1 — $ anchor prevents partial match on 3-part names
+PATTERN_TWO_PART = re.compile(_PREFIX_GROUP + r'(\d+)/(\d+)$')
+
+
+class FormatType(Enum):
+    """Interface naming format type."""
+    THREE_PART = 'three_part'
+    TWO_PART = 'two_part'
+
+
+@dataclass
+class InterfaceFormat:
+    """Detected interface format information."""
+    format_type: FormatType
+    switch_index_base: int  # 1 for three-part, 0 for two-part
+    has_access_group: bool
+    three_part_count: int
+    two_part_count: int
 
 
 class InterfaceParser:
@@ -130,6 +173,73 @@ class InterfaceParser:
             return None
 
     @classmethod
+    def detect_format(cls, interface_names: list) -> Optional[InterfaceFormat]:
+        """
+        Scan all interface names and detect the dominant format.
+
+        Args:
+            interface_names (list): List of interface names to analyze.
+
+        Returns:
+            InterfaceFormat with detected format info, or None if no Ethernet interfaces found.
+        """
+        three_part_count = 0
+        two_part_count = 0
+
+        for name in interface_names:
+            if PATTERN_THREE_PART.match(name):
+                three_part_count += 1
+            elif PATTERN_TWO_PART.match(name):
+                two_part_count += 1
+
+        if three_part_count == 0 and two_part_count == 0:
+            return None
+
+        if three_part_count >= two_part_count:
+            return InterfaceFormat(
+                format_type=FormatType.THREE_PART,
+                switch_index_base=1,
+                has_access_group=True,
+                three_part_count=three_part_count,
+                two_part_count=two_part_count,
+            )
+        else:
+            return InterfaceFormat(
+                format_type=FormatType.TWO_PART,
+                switch_index_base=0,
+                has_access_group=False,
+                three_part_count=three_part_count,
+                two_part_count=two_part_count,
+            )
+
+    @classmethod
+    def parse_interface_auto(cls, interface_name: str) -> Optional[Tuple]:
+        """
+        Parse an interface name without requiring a device_type.
+
+        Tries 3-part first, then 2-part.
+
+        Args:
+            interface_name (str): Full interface name.
+
+        Returns:
+            ('three_part', switch, group, port) for 3-part matches,
+            ('two_part', switch, port) for 2-part matches,
+            or None if no match.
+        """
+        match = PATTERN_THREE_PART.match(interface_name)
+        if match:
+            switch, group, port = match.groups()
+            return ('three_part', int(switch), int(group), int(port))
+
+        match = PATTERN_TWO_PART.match(interface_name)
+        if match:
+            switch, port = match.groups()
+            return ('two_part', int(switch), int(port))
+
+        return None
+
+    @classmethod
     def get_interface_prefix(cls, interface_name: str) -> Optional[str]:
         """
         Extract interface type prefix (GigabitEthernet, FastEthernet, etc.).
@@ -150,9 +260,7 @@ class InterfaceParser:
             >>> InterfaceParser.get_interface_prefix('FastEthernet2/0/24')
             'FastEthernet'
         """
-        # Try to match common interface prefixes
-        prefixes = ['GigabitEthernet', 'FastEthernet', 'TenGigabitEthernet', 'Gi', 'Fa', 'Te']
-        for prefix in prefixes:
+        for prefix in ETHERNET_PREFIXES:
             if interface_name.startswith(prefix):
                 return prefix
         return None

@@ -78,7 +78,7 @@ def configure_meraki_switch_ports(api_key, meraki_ports_map):
                 print(f"Error updating port {port['portId']} on Meraki switch {serial}: {e}")
 
 
-def valid_interface(switch_number, port_number, meraki_serials, intf_name, device_type, access_group_number=0):
+def valid_interface(switch_number, port_number, meraki_serials, intf_name, is_one_based):
     """
     Validates the interface based on switch number and port number.
 
@@ -87,22 +87,17 @@ def valid_interface(switch_number, port_number, meraki_serials, intf_name, devic
         port_number (int): The port number.
         meraki_serials (list): List of Meraki serial numbers.
         intf_name (str): Interface name for error messages.
-        device_type (str): Device type ('catalyst_2960' or 'catalyst_3850').
-        access_group_number (int): The switch stack access group number (only for 2960).
+        is_one_based (bool): True if switch numbering is 1-based (3-part format),
+                             False if 0-based (2-part format).
 
     Returns:
         bool: True if the interface is valid, False otherwise.
     """
-    # Check if switch number is within bounds
-    # For 2960: switch_number is 1-based
-    # For 3850: switch_number is 0-based
-    if device_type == 'catalyst_2960':
-        # 2960 uses 1-based indexing: switch 1, 2, 3...
+    if is_one_based:
         if switch_number < 1 or switch_number > len(meraki_serials):
             print(f"Switch {switch_number} does not have a corresponding Meraki serial; skipping")
             return False
     else:
-        # 3850 uses 0-based indexing: switch 0, 1, 2...
         if switch_number < 0 or switch_number >= len(meraki_serials):
             print(f"Switch {switch_number} does not have a corresponding Meraki serial; skipping")
             return False
@@ -110,70 +105,58 @@ def valid_interface(switch_number, port_number, meraki_serials, intf_name, devic
     return True
 
 
-def map_interface_configs(interfaces, meraki_serials, device_type='catalyst_2960', access_group_number=0):
+def map_interface_configs(interfaces, meraki_serials, access_group_number=0):
     """
     Maps Catalyst switch (including stacked) interface configurations to Meraki-compatible configurations.
-    This function takes into account that each stack switch corresponds to a Meraki switch based on the list of serials provided.
+    Auto-detects interface naming format (3-part vs 2-part) from the interface names.
 
     Args:
         interfaces (dict): A dictionary containing the Catalyst switch interfaces and their configurations.
         meraki_serials (list): A list of Meraki switch serial numbers, where each index corresponds to a Catalyst stack member.
-        device_type (str): Device type ('catalyst_2960' or 'catalyst_3850'). Default: 'catalyst_2960'
         access_group_number (int): The switch stack access group number (default is 0).
-                                   Only used for 2960. I.E GigabitEthernet 1/0/1. The access group number is 0.
+                                   Only used for 3-part interfaces. I.E GigabitEthernet 1/0/1. The access group number is 0.
 
     Returns:
         dict: A dictionary where the keys are Meraki serial numbers, and the values are lists of Meraki-compatible port configurations.
     """
     meraki_ports_map = {serial: [] for serial in meraki_serials}
 
+    detected = InterfaceParser.detect_format(list(interfaces.keys()))
+    if detected:
+        print(f"Auto-detected interface format: {detected.format_type.value} "
+              f"(3-part: {detected.three_part_count}, 2-part: {detected.two_part_count})")
+    else:
+        print("No Ethernet interfaces detected in configuration.")
+
     for intf_name, catalyst_port_config in interfaces.items():
-        # Skip non-Ethernet interfaces
-        if not intf_name.startswith('GigabitEthernet'):
+        # Auto-parse each interface individually
+        parsed = InterfaceParser.parse_interface_auto(intf_name)
+        if parsed is None:
+            # Non-Ethernet interface (Vlan, Loopback, etc.) — skip silently
             continue
 
-        # Parse interface using InterfaceParser
-        parsed = InterfaceParser.parse_interface(intf_name, device_type)
-        if not parsed:
-            print(f"Could not parse interface {intf_name} for device type {device_type}")
-            continue
+        if parsed[0] == 'three_part':
+            _, switch_number, group_number, port_number = parsed
 
-        # Extract components based on device type
-        if device_type == 'catalyst_2960':
-            # 2960: GigabitEthernet<switch>/<group>/<port>
-            # Returns: (switch_number, group_number, port_number)
-            try:
-                switch_number, group_number, port_number = [int(x) for x in parsed]
-            except (ValueError, TypeError):
-                print(f"Invalid interface numbering in {intf_name}")
-                continue
-
-            # Validate group number for 2960
+            # Validate group number
             if group_number != access_group_number:
                 print(f"Port {intf_name} is not in access group {access_group_number}; skipping")
                 continue
 
-            # Validate interface
-            if not valid_interface(switch_number, port_number, meraki_serials, intf_name, device_type, access_group_number):
+            # Validate interface (1-based indexing)
+            if not valid_interface(switch_number, port_number, meraki_serials, intf_name, is_one_based=True):
                 continue
 
-            # Get the corresponding Meraki serial (2960 uses 1-based indexing)
+            # 1-based serial lookup
             meraki_serial = meraki_serials[switch_number - 1]
 
-        else:  # catalyst_3850
-            # 3850: GigabitEthernet<switch>/<port>
-            # Returns: (switch_number, port_number)
-            try:
-                switch_number, port_number = [int(x) for x in parsed]
-            except (ValueError, TypeError):
-                print(f"Invalid interface numbering in {intf_name}")
+        else:  # two_part
+            _, switch_number, port_number = parsed
+
+            # Validate interface (0-based indexing)
+            if not valid_interface(switch_number, port_number, meraki_serials, intf_name, is_one_based=False):
                 continue
 
-            # Validate interface
-            if not valid_interface(switch_number, port_number, meraki_serials, intf_name, device_type):
-                continue
-
-            # Get the corresponding Meraki serial (3850 uses 0-based indexing)
             meraki_serial = meraki_serials[switch_number]
 
         # Build the port configuration for Meraki using the utility function
@@ -185,19 +168,21 @@ def map_interface_configs(interfaces, meraki_serials, device_type='catalyst_2960
     return meraki_ports_map
 
 
-def run(meraki_api_key, meraki_cloud_ids, catalyst_ip=None, catalyst_config=None,
-        device_type='catalyst_2960', access_group_number=0, credentials_list=None):
+def run(meraki_api_key, meraki_cloud_ids, catalyst_ip=None,
+        catalyst_config=None, access_group_number=0,
+        credentials_list=None, **kwargs):
     """
-    Main execution function for converting Catalyst switch configuration to Meraki.
+    Main execution function for converting Catalyst switch configuration
+    to Meraki. Interface format is auto-detected from the config.
 
     Args:
-        meraki_api_key (str): API key for authenticating with the Meraki Dashboard.
-        meraki_cloud_ids (list): List of Meraki switch serial numbers corresponding to stack members.
-        catalyst_ip (str, optional): IP address of the Catalyst switch (if retrieving config remotely).
-        catalyst_config (str, optional): Pre-loaded Catalyst configuration text (skips remote retrieval).
-        device_type (str): Device type - 'catalyst_2960' or 'catalyst_3850'. Default: 'catalyst_2960'
-        access_group_number (int): Switch stack access group number for 2960 (default is 0).
-        credentials_list (list, optional): List of credential dicts for Netmiko connection.
+        meraki_api_key (str): API key for Meraki Dashboard.
+        meraki_cloud_ids (list): List of Meraki serial numbers.
+        catalyst_ip (str, optional): IP of the Catalyst switch.
+        catalyst_config (str, optional): Pre-loaded config text.
+        access_group_number (int): Access group number (default 0).
+        credentials_list (list, optional): Credential dicts for Netmiko.
+        **kwargs: Accepts deprecated params (e.g. device_type).
 
     Returns:
         None
@@ -205,7 +190,8 @@ def run(meraki_api_key, meraki_cloud_ids, catalyst_ip=None, catalyst_config=None
     # Step 1: Get Catalyst Config using netmiko_utils
     if not catalyst_config:
         if not catalyst_ip:
-            print("Error: Either catalyst_ip or catalyst_config must be provided.")
+            print("Error: Either catalyst_ip or catalyst_config "
+                  "must be provided.")
             sys.exit(1)
 
         print(f"Connecting to Catalyst switch at {catalyst_ip}...")
@@ -230,13 +216,15 @@ def run(meraki_api_key, meraki_cloud_ids, catalyst_ip=None, catalyst_config=None
     meraki_ports_map = map_interface_configs(
         interfaces,
         meraki_cloud_ids,
-        device_type=device_type,
         access_group_number=access_group_number
     )
 
     # Count total ports mapped
-    total_ports = sum(len(ports) for ports in meraki_ports_map.values())
-    print(f"Mapped {total_ports} Catalyst interfaces to Meraki port configurations for {device_type}.")
+    total_ports = sum(
+        len(ports) for ports in meraki_ports_map.values()
+    )
+    print(f"Mapped {total_ports} Catalyst interfaces to Meraki "
+          f"port configurations.")
 
     # Step 4: Configure Meraki Switch Ports
     configure_meraki_switch_ports(meraki_api_key, meraki_ports_map)

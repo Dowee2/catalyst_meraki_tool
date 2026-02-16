@@ -60,7 +60,6 @@ class ConversionWizard(ttk.Frame):
             'hostname': '',
             'credentials': None,
             'meraki_serials': [],
-            'switch_type': '2960'
         }
 
         # UI references
@@ -70,7 +69,6 @@ class ConversionWizard(ttk.Frame):
         self.hostname_entry = None
         self.cred_display_label = None
         self.serials_display = None
-        self.switch_type_var = None
         self.console = None
 
         self._create_wizard()
@@ -80,7 +78,7 @@ class ConversionWizard(ttk.Frame):
         steps = [
             {
                 'name': 'Source',
-                'title': 'Step 1 of 4: Where is your old switch?',
+                'title': 'Step 1 of 4: Get Old Switch information.',
                 'description': 'Choose how to get the switch configuration',
                 'create_content': self._create_source_step,
                 'validate': self._validate_source_step,
@@ -126,25 +124,55 @@ class ConversionWizard(ttk.Frame):
 
     def _create_source_step(self, content_frame):
         """Create the source selection step UI."""
-        # Source type selection
         self.source_var = tk.StringVar(value='ip')
 
-        # Option 1: Connect to switch
-        ip_frame = ttk.Frame(content_frame, style="Card.TFrame")
-        ip_frame.pack(fill=tk.X, pady=Spacing.SM)
+        self._create_source_info_box(content_frame)
+        self._create_source_radio_buttons(content_frame)
+        self._create_ip_source_content(content_frame)
+        self._create_file_source_content(content_frame)
 
-        ip_radio = ttk.Radiobutton(
-            ip_frame,
+        # Initially hide file container
+        self.file_container.pack_forget()
+
+    def _create_source_info_box(self, parent):
+        """Create the help info box for source selection."""
+        info_frame = ttk.Frame(parent, style="Card.TFrame")
+        info_frame.pack(fill=tk.X, pady=(Spacing.LG, 0))
+
+        InfoBox(
+            info_frame,
+            title="Not sure which to choose?",
+            message="If you can access the switch from this computer, use 'Connect over network'. "
+                    "Otherwise, export the running config from the switch and use 'Configuration file'.",
+            box_type='help'
+        ).pack(fill=tk.X)
+
+    def _create_source_radio_buttons(self, parent):
+        """Create the source type radio buttons side by side."""
+        radio_frame = ttk.Frame(parent, style="Card.TFrame")
+        radio_frame.pack(fill=tk.X, pady=Spacing.SM)
+
+        ttk.Radiobutton(
+            radio_frame,
             text="Connect to switch over the network",
             variable=self.source_var,
             value='ip',
             command=self._on_source_changed,
             style="Card.TRadiobutton"
-        )
-        ip_radio.pack(anchor=tk.W)
+        ).pack(side=tk.LEFT, padx=(0, Spacing.LG))
 
-        # IP input container
-        self.ip_container = ttk.Frame(content_frame, style="Card.TFrame")
+        ttk.Radiobutton(
+            radio_frame,
+            text="I have a configuration file",
+            variable=self.source_var,
+            value='file',
+            command=self._on_source_changed,
+            style="Card.TRadiobutton"
+        ).pack(side=tk.LEFT)
+
+    def _create_ip_source_content(self, parent):
+        """Create the IP input content area."""
+        self.ip_container = ttk.Frame(parent, style="Card.TFrame")
         self.ip_container.pack(fill=tk.X, padx=(Spacing.XL, 0), pady=Spacing.SM)
 
         self.ip_input = IPInput(
@@ -154,28 +182,16 @@ class ConversionWizard(ttk.Frame):
         )
         self.ip_input.pack(fill=tk.X)
 
-        # Spacer
-        ttk.Frame(content_frame, height=Spacing.MD).pack()
-
-        # Option 2: Config file
-        file_frame = ttk.Frame(content_frame, style="Card.TFrame")
-        file_frame.pack(fill=tk.X, pady=Spacing.SM)
-
-        file_radio = ttk.Radiobutton(
-            file_frame,
-            text="I have a configuration file",
-            variable=self.source_var,
-            value='file',
-            command=self._on_source_changed,
-            style="Card.TRadiobutton"
-        )
-        file_radio.pack(anchor=tk.W)
-
-        # File input container
-        self.file_container = ttk.Frame(content_frame, style="Card.TFrame")
+    def _create_file_source_content(self, parent):
+        """Create the file input content area."""
+        self.file_container = ttk.Frame(parent, style="Card.TFrame")
         self.file_container.pack(fill=tk.X, padx=(Spacing.XL, 0), pady=Spacing.SM)
 
-        # File path row
+        self._create_file_path_input()
+        self._create_hostname_input()
+
+    def _create_file_path_input(self):
+        """Create the file path input with browse button."""
         file_path_frame = ttk.Frame(self.file_container, style="Card.TFrame")
         file_path_frame.pack(fill=tk.X)
 
@@ -198,7 +214,8 @@ class ConversionWizard(ttk.Frame):
             command=self._browse_config_file
         ).pack(side=tk.LEFT, padx=(Spacing.SM, 0))
 
-        # Hostname row
+    def _create_hostname_input(self):
+        """Create the hostname input field."""
         hostname_frame = ttk.Frame(self.file_container, style="Card.TFrame")
         hostname_frame.pack(fill=tk.X, pady=(Spacing.MD, 0))
 
@@ -211,28 +228,13 @@ class ConversionWizard(ttk.Frame):
         self.hostname_entry = ttk.Entry(hostname_frame, width=30)
         self.hostname_entry.pack(anchor=tk.W, pady=(Spacing.XS, 0))
 
-        # Initially hide file container
-        self.file_container.pack_forget()
-
-        # Info box
-        info_frame = ttk.Frame(content_frame, style="Card.TFrame")
-        info_frame.pack(fill=tk.X, pady=(Spacing.LG, 0))
-
-        InfoBox(
-            info_frame,
-            title="Not sure which to choose?",
-            message="If you can access the switch from this computer, use 'Connect over network'. "
-                    "Otherwise, export the running config from the switch and use 'Configuration file'.",
-            box_type='help'
-        ).pack(fill=tk.X)
 
     def _on_source_changed(self):
         """Handle source type radio button change."""
         source = self.source_var.get()
         if source == 'ip':
             self.file_container.pack_forget()
-            self.ip_container.pack(fill=tk.X, padx=(Spacing.XL, 0), pady=Spacing.SM,
-                                   after=self.ip_container.master.winfo_children()[1])
+            self.ip_container.pack(fill=tk.X, padx=(Spacing.XL, 0), pady=Spacing.SM)
         else:
             self.ip_container.pack_forget()
             self.file_container.pack(fill=tk.X, padx=(Spacing.XL, 0), pady=Spacing.SM)
@@ -284,15 +286,19 @@ class ConversionWizard(ttk.Frame):
 
     def _create_credentials_step(self, content_frame):
         """Create the credentials step UI."""
-        # Saved credentials section
+        self._create_saved_credentials_section(content_frame)
+        self._create_new_credentials_section(content_frame)
+        self._create_selected_credential_indicator(content_frame)
+
+    def _create_saved_credentials_section(self, parent):
+        """Create the saved credentials selection section."""
         saved_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="Saved login details",
             style="Card.TLabelframe"
         )
         saved_frame.pack(fill=tk.X, pady=Spacing.SM)
 
-        # Saved credentials display
         self.cred_list_frame = ttk.Frame(saved_frame)
         self.cred_list_frame.pack(fill=tk.X, padx=Spacing.MD, pady=Spacing.MD)
 
@@ -303,7 +309,11 @@ class ConversionWizard(ttk.Frame):
         )
         self.cred_display_label.pack(anchor=tk.W)
 
-        # Credential selection listbox
+        self._create_credentials_listbox()
+        self._create_saved_credentials_buttons(saved_frame)
+
+    def _create_credentials_listbox(self):
+        """Create the credentials selection listbox."""
         self.cred_listbox = tk.Listbox(
             self.cred_list_frame,
             height=4,
@@ -316,8 +326,9 @@ class ConversionWizard(ttk.Frame):
         self.cred_listbox.pack(fill=tk.X, pady=(Spacing.SM, 0))
         self.cred_listbox.pack_forget()  # Hidden initially
 
-        # Buttons for saved credentials
-        saved_btn_frame = ttk.Frame(saved_frame)
+    def _create_saved_credentials_buttons(self, parent):
+        """Create buttons for saved credentials management."""
+        saved_btn_frame = ttk.Frame(parent)
         saved_btn_frame.pack(fill=tk.X, padx=Spacing.MD, pady=(0, Spacing.MD))
 
         self.use_saved_btn = ttk.Button(
@@ -336,9 +347,10 @@ class ConversionWizard(ttk.Frame):
             command=self._manage_credentials
         ).pack(side=tk.LEFT)
 
-        # New credentials section
+    def _create_new_credentials_section(self, parent):
+        """Create the new credentials entry section."""
         new_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="Or enter new credentials",
             style="Card.TLabelframe"
         )
@@ -367,8 +379,9 @@ class ConversionWizard(ttk.Frame):
             command=self._use_new_credentials
         ).grid(row=2, column=0, columnspan=2, pady=Spacing.MD)
 
-        # Selected credential indicator
-        self.selected_cred_frame = ttk.Frame(content_frame, style="Card.TFrame")
+    def _create_selected_credential_indicator(self, parent):
+        """Create the selected credential status indicator."""
+        self.selected_cred_frame = ttk.Frame(parent, style="Card.TFrame")
         self.selected_cred_frame.pack(fill=tk.X, pady=Spacing.MD)
 
         self.selected_cred_label = ttk.Label(
@@ -481,9 +494,13 @@ class ConversionWizard(ttk.Frame):
 
     def _create_destination_step(self, content_frame):
         """Create the destination step UI."""
-        # Meraki serials section
+        self._create_serials_section(content_frame)
+        self._update_serials_display()
+
+    def _create_serials_section(self, parent):
+        """Create the Meraki serial numbers section."""
         serials_frame = ttk.LabelFrame(
-            content_frame,
+            parent,
             text="New Meraki switch serial numbers",
             style="Card.TLabelframe"
         )
@@ -492,7 +509,6 @@ class ConversionWizard(ttk.Frame):
         serials_inner = ttk.Frame(serials_frame)
         serials_inner.pack(fill=tk.X, padx=Spacing.MD, pady=Spacing.MD)
 
-        # Serials display
         self.serials_display = ttk.Entry(serials_inner, width=50, state="readonly")
         self.serials_display.pack(side=tk.LEFT, fill=tk.X, expand=True)
 
@@ -503,51 +519,12 @@ class ConversionWizard(ttk.Frame):
             command=self._manage_serials
         ).pack(side=tk.LEFT, padx=(Spacing.SM, 0))
 
-        # Info about serials
         InfoBox(
             serials_frame,
             message="Enter the serial number(s) of your new Meraki switch(es). "
                     "For switch stacks, enter them in the correct order.",
             box_type='info'
         ).pack(fill=tk.X, padx=Spacing.MD, pady=(0, Spacing.MD))
-
-        # Switch type section
-        type_frame = ttk.LabelFrame(
-            content_frame,
-            text="Old switch type",
-            style="Card.TLabelframe"
-        )
-        type_frame.pack(fill=tk.X, pady=Spacing.MD)
-
-        type_inner = ttk.Frame(type_frame)
-        type_inner.pack(fill=tk.X, padx=Spacing.MD, pady=Spacing.MD)
-
-        self.switch_type_var = tk.StringVar(value='2960')
-
-        ttk.Radiobutton(
-            type_inner,
-            text="Catalyst 2960 Series",
-            variable=self.switch_type_var,
-            value='2960'
-        ).pack(anchor=tk.W, pady=Spacing.XS)
-
-        ttk.Radiobutton(
-            type_inner,
-            text="Catalyst 3850 Series",
-            variable=self.switch_type_var,
-            value='3850'
-        ).pack(anchor=tk.W, pady=Spacing.XS)
-
-        # Info about switch type
-        InfoBox(
-            type_frame,
-            message="Select the model series of your old Catalyst switch. "
-                    "This helps the tool correctly interpret the configuration.",
-            box_type='help'
-        ).pack(fill=tk.X, padx=Spacing.MD, pady=(0, Spacing.MD))
-
-        # Load initial serials
-        self._update_serials_display()
 
     def _manage_serials(self):
         """Open the serial management dialog."""
@@ -578,7 +555,7 @@ class ConversionWizard(ttk.Frame):
 
     def _save_destination_data(self):
         """Save destination data."""
-        self.wizard_data['switch_type'] = self.switch_type_var.get()
+        pass
 
     # =========================================================================
     # Step 4: Review & Execute
@@ -640,7 +617,7 @@ class ConversionWizard(ttk.Frame):
             lines.append(f"  Hostname: {data['hostname']}")
 
         lines.append("")
-        lines.append(f"Switch type: Catalyst {data['switch_type']} Series")
+        lines.append("Interface format: Auto-detected from configuration")
         lines.append("")
         lines.append(f"Meraki serial numbers ({len(data['meraki_serials'])}):")
         for i, serial in enumerate(data['meraki_serials'], 1):

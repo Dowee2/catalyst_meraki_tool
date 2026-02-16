@@ -15,17 +15,17 @@ class ScriptLoader:
     def __init__(self):
         """Initialize the script loader."""
         self.modules = {}
-        self.script_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts")
-        
-    def get_script_path():
+        self.script_dir = self._get_script_path()
+
+    def _get_script_path(self):
         """Get the path to the scripts directory, works both in development and when packaged."""
         if getattr(sys, 'frozen', False):
-            # Running as an executable
-            base_path = os.path.dirname(sys.executable)
+            # Running as a PyInstaller bundle — data files are extracted to _MEIPASS
+            base_path = sys._MEIPASS
         else:
             # Running in a normal Python environment
             base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        
+
         return os.path.join(base_path, 'scripts')
     
     def load_scripts(self):

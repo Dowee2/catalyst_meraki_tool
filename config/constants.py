@@ -47,16 +47,6 @@ DEFAULT_MERAKI_PORT_CONFIG = {
 UPLINK_PORT_THRESHOLD = 48
 
 # =============================================================================
-# Device Model Mappings
-# =============================================================================
-
-# Map of device series to their interface parser types
-DEVICE_INTERFACE_PATTERNS = {
-    '2960': 'catalyst_2960',  # GigabitEthernet<switch>/<group>/<port>
-    '3850': 'catalyst_3850',  # GigabitEthernet<switch>/<port>
-}
-
-# =============================================================================
 # Spanning Tree Protocol Settings
 # =============================================================================
 
