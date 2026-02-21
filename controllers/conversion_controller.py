@@ -58,17 +58,14 @@ class ConversionController:
             messagebox.showerror("Error", "Meraki serial numbers are required.")
             return
 
-        # Get unified conversion module
         convert_module = self.modules.get(ScriptType.CONVERT)
         if not convert_module:
             messagebox.showerror("Error", "Conversion module not loaded.")
             return
 
-        # Clear console if provided
         if console_widget:
             console_widget.delete('1.0', 'end')
 
-        # Process based on source type
         if source_type == 'ip':
             self._run_ip_conversion(
                 convert_module, api_key, wizard_data,
@@ -103,13 +100,11 @@ class ConversionController:
             messagebox.showerror("Error", "Credentials are required.")
             return
 
-        # Format credentials for the script
         credentials_list = [{
             'username': credentials.get('username', ''),
             'password': credentials.get('password', '')
         }]
 
-        # Log to console
         self._append_console(console_widget,
                             f"Connecting to Catalyst switch at {catalyst_ip}...\n")
         self._append_console(console_widget,
@@ -124,7 +119,6 @@ class ConversionController:
             )
             return None
 
-        # Run in background
         BackgroundTask.run(
             run_conversion,
             console_widget=console_widget,
@@ -155,7 +149,6 @@ class ConversionController:
             messagebox.showerror("Error", "Switch hostname is required.")
             return
 
-        # Read config file
         try:
             with open(config_file, 'r') as f:
                 catalyst_config = f.read()
@@ -163,7 +156,6 @@ class ConversionController:
             messagebox.showerror("Error", f"Failed to read configuration file: {str(e)}")
             return
 
-        # Log to console
         self._append_console(console_widget,
                             f"Converting configuration for {hostname}...\n")
         self._append_console(console_widget,
@@ -177,7 +169,6 @@ class ConversionController:
             )
             return None
 
-        # Run in background
         BackgroundTask.run(
             run_conversion,
             console_widget=console_widget,
@@ -201,7 +192,6 @@ class ConversionController:
         error_message = f"Error during conversion: {str(error)}"
         self._append_console(console_widget, f"\n{error_message}\n")
 
-        # Print traceback to console
         if console_widget:
             import io
             tb_io = io.StringIO()

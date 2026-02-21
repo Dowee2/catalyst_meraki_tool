@@ -20,14 +20,12 @@ class ScriptLoader:
     def _get_script_path(self):
         """Get the path to the scripts directory, works both in development and when packaged."""
         if getattr(sys, 'frozen', False):
-            # Running as a PyInstaller bundle — data files are extracted to _MEIPASS
             base_path = sys._MEIPASS
         else:
-            # Running in a normal Python environment
             base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
         return os.path.join(base_path, 'scripts')
-    
+
     def load_scripts(self):
         """
         Load all required script modules using ScriptType enum.
@@ -36,14 +34,12 @@ class ScriptLoader:
             dict: A dictionary of loaded modules or None if loading failed
         """
         try:
-            # Define the scripts to load using ScriptType enum
             scripts = {
                 ScriptType.COMPARE_INTERFACES: "compare_interface_status.py",
                 ScriptType.COMPARE_MAC: "compare_mac_address_table.py",
-                ScriptType.CONVERT: "convert_catalyst_to_meraki.py"  # Unified conversion script
+                ScriptType.CONVERT: "convert_catalyst_to_meraki.py"
             }
 
-            # Load each script
             for script_type, filename in scripts.items():
                 spec = importlib.util.spec_from_file_location(
                     script_type.name,
@@ -59,7 +55,7 @@ class ScriptLoader:
             print(f"Error loading scripts: {e}")
             traceback.print_exc()
             return None
-    
+
     def get_module(self, script_type):
         """
         Get a loaded module by ScriptType.

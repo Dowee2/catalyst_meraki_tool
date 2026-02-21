@@ -21,7 +21,6 @@ Usage Example:
     if net_connect:
         with net_connect:
             net_connect.enable()
-            # ... do work ...
             save_config_to_folder(net_connect, './configs')
 """
 
@@ -50,14 +49,12 @@ def load_credentials_from_env(include_user_prompt=True):
               Returns empty list if no credentials found.
 
     Example:
-        >>> # With environment variables set
         >>> creds = load_credentials_from_env(include_user_prompt=False)
         >>> print(creds)
         [{'username': 'admin', 'password': '***'}, {'username': 'cisco', 'password': '***'}]
     """
     credentials = []
 
-    # Add interactive user prompt as first credential
     if include_user_prompt:
         try:
             username = getpass.getuser()
@@ -66,7 +63,6 @@ def load_credentials_from_env(include_user_prompt=True):
         except Exception as e:
             logging.warning(f"Could not get user credentials interactively: {e}")
 
-    # Load numbered credentials from environment
     index = 1
     while True:
         username = os.getenv(f'NETMIKO_USERNAME_{index}')
@@ -135,11 +131,9 @@ def connect_with_retry(ip_address, credentials=None, device_type='cisco_ios',
         ...         output = net_connect.send_command('show version')
         ...         print(output)
     """
-    # Use module logger if none provided
     if logger is None:
         logger = logging.getLogger(__name__)
 
-    # Load credentials from environment if not provided
     if credentials is None:
         credentials = load_credentials_from_env(include_user_prompt=True)
 
@@ -147,7 +141,6 @@ def connect_with_retry(ip_address, credentials=None, device_type='cisco_ios',
         logger.error(f"No credentials available to connect to {ip_address}")
         return None, None
 
-    # Load defaults from environment
     if enable_secret is None:
         enable_secret = os.getenv('NETMIKO_ENABLE_SECRET', 'Southwire!')
 
@@ -159,11 +152,9 @@ def connect_with_retry(ip_address, credentials=None, device_type='cisco_ios',
         if read_timeout_env:
             read_timeout_override = int(read_timeout_env)
 
-    # Try each credential
     successful_authentication = False
     for credential in credentials:
         try:
-            # Build device connection parameters
             device = {
                 'device_type': device_type,
                 'ip': ip_address,
@@ -173,11 +164,9 @@ def connect_with_retry(ip_address, credentials=None, device_type='cisco_ios',
                 'timeout': timeout
             }
 
-            # Add read_timeout_override if specified
             if read_timeout_override:
                 device['read_timeout_override'] = read_timeout_override
 
-            # Attempt connection
             net_connect = ConnectHandler(**device)
             successful_authentication = True
 
@@ -186,21 +175,17 @@ def connect_with_retry(ip_address, credentials=None, device_type='cisco_ios',
 
         except NetMikoTimeoutException:
             logger.error(f"Connection timed out for {ip_address}")
-            # Timeout means network issue, don't try other credentials
             return None, None
 
         except NetMikoAuthenticationException:
             if log_auth_failures:
                 logger.warning(f"Authentication failed for {ip_address} using {mask_credential(credential)}")
-            # Continue to next credential
             continue
 
         except Exception as error:
             logger.error(f"Failed to connect to {ip_address}: {error}")
-            # Unexpected error, don't try other credentials
             return None, None
 
-    # All credentials failed
     if not successful_authentication:
         logger.error(f"All credentials failed for {ip_address}")
         return None, None
@@ -227,37 +212,28 @@ def save_config_to_folder(net_connect, base_folder_path,
         str: Full path to saved config file
 
     Example:
-        >>> # Device hostname: CORP-MTN-SW-01
         >>> save_config_to_folder(net_connect, './configs')
         './configs/CORP/CORP-MTN-SW-01_config.txt'
 
-        >>> # Device hostname: SITE_DEVICE_01
         >>> save_config_to_folder(net_connect, './configs', location_delimiter='_')
         './configs/SITE/SITE_DEVICE_01_config.txt'
     """
-    # Get device hostname (remove trailing prompt character)
     device_name = net_connect.find_prompt()[:-1]
 
-    # Extract location from hostname
     try:
         location = device_name.split(location_delimiter)[location_index]
     except IndexError:
-        # If split fails, use full device name as location
         location = device_name
         logging.warning(f"Could not parse location from {device_name}, using full name as location")
 
-    # Create folder structure
     folder_path = os.path.join(base_folder_path, location)
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    # Define file path
     file_path = os.path.join(folder_path, f"{device_name}_config.txt")
 
-    # Retrieve running config
     running_config = net_connect.send_command('show run')
 
-    # Write config to file
     with open(file_path, 'w') as file:
         file.write(running_config)
 
@@ -323,25 +299,20 @@ def get_running_config(ip_address, credentials=None, command='show running-confi
                (None, None) if connection or command fails
 
     Example:
-        >>> # Get running config
         >>> config, hostname = get_running_config('192.168.1.1', command='show running-config')
 
-        >>> # Get interface status with TextFSM parsing
         >>> interfaces, hostname = get_running_config('192.168.1.1',
         ...                                            command='show ip int brief',
         ...                                            use_textfsm=True)
 
-        >>> # Get MAC address table
         >>> macs, hostname = get_running_config('192.168.1.1',
         ...                                     command='show mac address-table',
         ...                                     use_textfsm=True,
         ...                                     read_timeout=90)
     """
-    # Use module logger if none provided
     if logger is None:
         logger = logging.getLogger(__name__)
 
-    # Connect to switch with credential retry
     net_connect, successful_cred = connect_with_retry(
         ip_address,
         credentials=credentials,
@@ -355,16 +326,10 @@ def get_running_config(ip_address, credentials=None, command='show running-confi
 
     try:
         with net_connect:
-            # Enable privileged mode
             net_connect.enable()
-
-            # Get hostname
             hostname = net_connect.find_prompt().strip('#')
-
-            # Execute command
             output = net_connect.send_command(command, use_textfsm=use_textfsm, read_timeout=read_timeout)
 
-            # Save config (if running-config command)
             if 'running-config' in command:
                 net_connect.save_config()
 
@@ -376,5 +341,4 @@ def get_running_config(ip_address, credentials=None, command='show running-confi
         return None, None
 
 
-# Module-level logger for internal use
 _module_logger = logging.getLogger(__name__)

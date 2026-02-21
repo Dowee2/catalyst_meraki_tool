@@ -1,5 +1,3 @@
-# Create a new model: models/progress_model.py
-
 """
 Model for tracking migration progress.
 """
@@ -10,21 +8,20 @@ class ProgressModel:
     """
     Tracks the progress of switch migrations.
     """
-    
+
     def __init__(self, file_path="migration_progress.json"):
         """
         Initialize the progress model.
-        
+
         Args:
             file_path (str): Path to the progress file
         """
         self._file_path = file_path
         self._switches = {}
         self._observers = []
-        
-        # Load existing progress if available
+
         self._load_progress()
-    
+
     def _load_progress(self):
         """Load progress from file if it exists."""
         if os.path.exists(self._file_path):
@@ -32,25 +29,22 @@ class ProgressModel:
                 with open(self._file_path, 'r') as f:
                     self._switches = json.load(f)
             except Exception:
-                # If loading fails, start with empty progress
                 self._switches = {}
-    
+
     def _save_progress(self):
         """Save progress to file."""
         try:
             with open(self._file_path, 'w') as f:
                 json.dump(self._switches, f, indent=2)
         except Exception:
-            # If saving fails, just continue
             pass
-        
-        # Notify observers
+
         self._notify_observers()
-    
+
     def update_switch_progress(self, switch_ip, hostname, status):
         """
         Update the progress for a switch.
-        
+
         Args:
             switch_ip (str): The switch IP address
             hostname (str): The switch hostname
@@ -61,48 +55,48 @@ class ProgressModel:
             'status': status
         }
         self._save_progress()
-    
+
     def get_switch_progress(self, switch_ip):
         """
         Get the progress for a switch.
-        
+
         Args:
             switch_ip (str): The switch IP address
-            
+
         Returns:
             dict or None: The switch progress or None if not found
         """
         return self._switches.get(switch_ip)
-    
+
     def get_all_switches(self):
         """
         Get all tracked switches.
-        
+
         Returns:
             dict: Dictionary of all switches and their progress
         """
         return self._switches.copy()
-    
+
     def add_observer(self, observer):
         """
         Add an observer for progress changes.
-        
+
         Args:
             observer: A function to call when progress changes
         """
         if observer not in self._observers:
             self._observers.append(observer)
-    
+
     def remove_observer(self, observer):
         """
         Remove an observer.
-        
+
         Args:
             observer: The observer to remove
         """
         if observer in self._observers:
             self._observers.remove(observer)
-    
+
     def _notify_observers(self):
         """Notify all observers of a change."""
         for observer in self._observers:

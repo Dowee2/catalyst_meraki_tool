@@ -50,61 +50,51 @@ def build_meraki_port_config(port_number: int, catalyst_port_config: str) -> Dic
         >>> print(config['voiceVlan'])
         '20'
     """
-    # Initialize with default Meraki port configuration
     meraki_port_config = {
         'portId': port_number,
         'name': None,
         'enabled': True,
-        'type': 'access',  # Default to access port
-        'vlan': '1',  # Default VLAN
+        'type': 'access',
+        'vlan': '1',
         'voiceVlan': None,
-        'allowedVlans': '1-1000',  # Default to all VLANs
-        'poeEnabled': True,  # Assume PoE is enabled by default
+        'allowedVlans': '1-1000',
+        'poeEnabled': True,
         'isolationEnabled': False,
-        'rstpEnabled': True,  # Enable RSTP by default
+        'rstpEnabled': True,
         'stpGuard': 'disabled',
         'linkNegotiation': 'Auto negotiate',
     }
 
-    # Parse enabled/disabled status
     if 'shutdown' in catalyst_port_config:
         meraki_port_config['enabled'] = False
 
-    # Parse description
     if 'description' in catalyst_port_config:
         description_match = re.search(r'description (.+)', catalyst_port_config)
         if description_match:
             meraki_port_config['name'] = description_match.group(1).strip()
 
-    # Parse trunk configuration
     if 'switchport mode trunk' in catalyst_port_config:
         meraki_port_config['type'] = 'trunk'
 
-        # Parse allowed VLANs
         allowed_vlans = re.search(r'switchport trunk allowed vlan (.+)', catalyst_port_config)
         if allowed_vlans:
             meraki_port_config['allowedVlans'] = allowed_vlans.group(1).strip()
         else:
-            meraki_port_config['allowedVlans'] = '1-1000'  # Default to all VLANs
+            meraki_port_config['allowedVlans'] = '1-1000'
 
-        # Parse native VLAN
         native_vlan = re.search(r'switchport trunk native vlan (\d+)', catalyst_port_config)
         if native_vlan:
             meraki_port_config['vlan'] = native_vlan.group(1)
 
-    # Parse access port configuration
     else:
-        # Parse access VLAN
         access_vlan = re.search(r'switchport access vlan (\d+)', catalyst_port_config)
         if access_vlan:
             meraki_port_config['vlan'] = access_vlan.group(1)
 
-        # Parse voice VLAN
         voice_vlan = re.search(r'switchport voice vlan (\d+)', catalyst_port_config)
         if voice_vlan:
             meraki_port_config['voiceVlan'] = voice_vlan.group(1)
 
-    # Parse spanning-tree settings
     if 'spanning-tree portfast' in catalyst_port_config:
         meraki_port_config['rstpEnabled'] = True
 
@@ -114,7 +104,6 @@ def build_meraki_port_config(port_number: int, catalyst_port_config: str) -> Dic
     if 'spanning-tree guard root' in catalyst_port_config:
         meraki_port_config['stpGuard'] = 'root guard'
 
-    # Parse PoE settings
     if 'power inline never' in catalyst_port_config:
         meraki_port_config['poeEnabled'] = False
 

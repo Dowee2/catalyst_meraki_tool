@@ -15,10 +15,7 @@ class ScriptType(Enum):
     Used for type-safe module selection and loading.
     """
 
-    # Conversion scripts
     CONVERT = "convert_catalyst_to_meraki"
-
-    # Comparison scripts
     COMPARE_INTERFACES = "compare_interface_status"
     COMPARE_MAC = "compare_mac_address_table"
 

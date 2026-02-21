@@ -3,13 +3,11 @@ import sys
 import os
 import meraki
 
-# Use relative imports for all internal modules
 from utils.netmiko_utils import get_running_config
 from utils.port_config_builder import build_meraki_port_config
 from utils.interface_parser import InterfaceParser
 from config.constants import DEFAULT_READ_TIMEOUT
 
-# Suppress warnings related to SSL certificates
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -41,17 +39,14 @@ def configure_meraki_switch_ports(api_key, meraki_ports_map):
     """
     dashboard = meraki.DashboardAPI(api_key)
 
-    # Iterate through each Meraki switch serial and update its corresponding ports
     for serial, ports in meraki_ports_map.items():
         try:
-            # Retrieve the existing ports on the Meraki switch
             existing_ports = dashboard.switch.getDeviceSwitchPorts(serial)
             existing_port_ids = [str(port['portId']) for port in existing_ports]
         except meraki.APIError as e:
             print(f"Error retrieving existing ports for switch {serial}: {e}")
             sys.exit(1)
 
-        # Update switch ports with new configurations
         for port in ports:
             if str(port['portId']) not in existing_port_ids:
                 print(f"Port {port['portId']} does not exist on the Meraki switch {serial}.")
@@ -129,40 +124,31 @@ def map_interface_configs(interfaces, meraki_serials, access_group_number=0):
         print("No Ethernet interfaces detected in configuration.")
 
     for intf_name, catalyst_port_config in interfaces.items():
-        # Auto-parse each interface individually
         parsed = InterfaceParser.parse_interface_auto(intf_name)
         if parsed is None:
-            # Non-Ethernet interface (Vlan, Loopback, etc.) — skip silently
             continue
 
         if parsed[0] == 'three_part':
             _, switch_number, group_number, port_number = parsed
 
-            # Validate group number
             if group_number != access_group_number:
                 print(f"Port {intf_name} is not in access group {access_group_number}; skipping")
                 continue
 
-            # Validate interface (1-based indexing)
             if not valid_interface(switch_number, port_number, meraki_serials, intf_name, is_one_based=True):
                 continue
 
-            # 1-based serial lookup
             meraki_serial = meraki_serials[switch_number - 1]
 
-        else:  # two_part
+        else:
             _, switch_number, port_number = parsed
 
-            # Validate interface (0-based indexing)
             if not valid_interface(switch_number, port_number, meraki_serials, intf_name, is_one_based=False):
                 continue
 
             meraki_serial = meraki_serials[switch_number]
 
-        # Build the port configuration for Meraki using the utility function
         meraki_port_config = build_meraki_port_config(port_number, catalyst_port_config)
-
-        # Append the port config to the corresponding Meraki switch
         meraki_ports_map[meraki_serial].append(meraki_port_config)
 
     return meraki_ports_map
@@ -187,7 +173,6 @@ def run(meraki_api_key, meraki_cloud_ids, catalyst_ip=None,
     Returns:
         None
     """
-    # Step 1: Get Catalyst Config using netmiko_utils
     if not catalyst_config:
         if not catalyst_ip:
             print("Error: Either catalyst_ip or catalyst_config "
@@ -208,43 +193,26 @@ def run(meraki_api_key, meraki_cloud_ids, catalyst_ip=None,
             sys.exit(1)
         print(f"Catalyst configuration retrieved from {hostname}.")
 
-    # Step 2: Parse Interfaces
     interfaces = parse_interfaces(catalyst_config)
     print(f"Parsed {len(interfaces)} interfaces from configuration.")
 
-    # Step 3: Map Interface Configs to Meraki Format
     meraki_ports_map = map_interface_configs(
         interfaces,
         meraki_cloud_ids,
         access_group_number=access_group_number
     )
 
-    # Count total ports mapped
     total_ports = sum(
         len(ports) for ports in meraki_ports_map.values()
     )
     print(f"Mapped {total_ports} Catalyst interfaces to Meraki "
           f"port configurations.")
 
-    # Step 4: Configure Meraki Switch Ports
     configure_meraki_switch_ports(meraki_api_key, meraki_ports_map)
     print("Port configurations applied to Meraki switches.")
 
 
 if __name__ == "__main__":
-    # Example usage - DO NOT use hardcoded IPs in production
-    # This is for testing only
-
-    # Example for 2960
-    # catalyst_ip = "10.x.x.x"
-    # device_type = "catalyst_2960"
-    # meraki_serials = ["SERIAL1", "SERIAL2"]
-
-    # Example for 3850
-    # catalyst_ip = "10.x.x.x"
-    # device_type = "catalyst_3850"
-    # meraki_serials = ["SERIAL1", "SERIAL2"]
-
     meraki_api_key = os.getenv("MERAKI_API_KEY")
 
     if not meraki_api_key:
