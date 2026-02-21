@@ -2,11 +2,11 @@
 Controller for the conversion/migration functionality.
 """
 
-import os
 import traceback
 from tkinter import messagebox
 
 from utils.workers import BackgroundTask
+from utils.config_manager import get_api_key
 from config.script_types import ScriptType
 
 
@@ -45,7 +45,7 @@ class ConversionController:
                 - meraki_serials: List of Meraki serial numbers
             console_widget: Optional widget to display output
         """
-        api_key = os.getenv("MERAKI_API_KEY") or os.getenv("MERAKI_DASHBOARD_API_KEY")
+        api_key = get_api_key()
         if not api_key:
             messagebox.showerror("Error", "Meraki API Key is not set. "
                                "Please set it in the Settings.")

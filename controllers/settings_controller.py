@@ -2,10 +2,10 @@
 Controller for the settings tab functionality.
 """
 
-import os
 from tkinter import messagebox
 
 from views.dialogs.credential_dialog import CredentialListManager
+from utils.config_manager import get_api_key, save_api_key
 
 class SettingsController:
     """
@@ -38,8 +38,7 @@ class SettingsController:
 
     def _init_view(self):
         """Initialize the view with current settings."""
-        api_key = os.getenv("MERAKI_DASHBOARD_API_KEY", "")
-        self.view.set_api_key(api_key)
+        self.view.set_api_key(get_api_key())
         self._update_credentials_count()
 
     def _update_credentials_count(self):
@@ -55,7 +54,7 @@ class SettingsController:
             messagebox.showerror("Error", "API Key cannot be empty")
             return
 
-        os.environ["MERAKI_DASHBOARD_API_KEY"] = api_key
+        save_api_key(api_key)
 
         messagebox.showinfo("Success", "API Key saved successfully")
 

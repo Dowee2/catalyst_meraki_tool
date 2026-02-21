@@ -2,9 +2,10 @@
 Main application controller for the Catalyst to Meraki Migration Tool.
 """
 
-import os
 import tkinter as tk
 from tkinter import messagebox
+
+from utils.config_manager import get_api_key, save_api_key
 
 from views.main_window import MainWindow
 from views.dashboard_view import DashboardView
@@ -136,7 +137,7 @@ class AppController:
             self.credentials_model
         )
 
-        api_key = os.getenv("MERAKI_DASHBOARD_API_KEY", "") or os.getenv("MERAKI_API_KEY", "")
+        api_key = get_api_key()
         if api_key:
             self.settings_view.set_api_key(api_key)
 
@@ -169,10 +170,7 @@ class AppController:
 
     def _check_api_key(self):
         """Check if API key is set and prompt if needed."""
-        api_key = os.getenv("MERAKI_DASHBOARD_API_KEY", "")
-
-        if not api_key:
-            api_key = os.getenv("MERAKI_API_KEY", "")
+        api_key = get_api_key()
 
         if self.settings_view:
             self.settings_view.set_api_key(api_key)
@@ -231,8 +229,7 @@ class AppController:
             messagebox.showwarning("Warning", "API Key cannot be empty.", parent=dialog)
             return
 
-        os.environ["MERAKI_DASHBOARD_API_KEY"] = api_key.strip()
-        os.environ["MERAKI_API_KEY"] = api_key.strip()
+        save_api_key(api_key.strip())
 
         if self.settings_view:
             self.settings_view.set_api_key(api_key.strip())
@@ -248,7 +245,7 @@ class AppController:
         Args:
             dialog: The dialog window
         """
-        api_key = os.getenv("MERAKI_DASHBOARD_API_KEY", "") or os.getenv("MERAKI_API_KEY", "")
+        api_key = get_api_key()
         if not api_key:
             if messagebox.askokcancel("Warning",
                                      "No API key provided. Some functions may not work correctly.\n\n"

@@ -735,12 +735,11 @@ class ComparisonWizard(ttk.Frame):
 
     def _run_comparison(self):
         """Run the comparison."""
-        import os
         from utils.workers import BackgroundTask
+        from utils.config_manager import get_api_key
         from config.script_types import ScriptType
 
-        # Check API key
-        api_key = os.getenv("MERAKI_API_KEY")
+        api_key = get_api_key()
         if not api_key:
             self.wizard.show_error("Meraki API Key is not set. Please configure it in Settings.")
             return

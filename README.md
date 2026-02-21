@@ -2,6 +2,10 @@
 
 A desktop application for migrating Cisco Catalyst switch configurations to Cisco Meraki switches. Built with Python and Tkinter, the tool provides a guided wizard-based workflow for configuration conversion and post-migration comparison.
 
+![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
+![License](https://img.shields.io/badge/License-MIT-green)
+
 ## Features
 
 - **Switch Migration** - Convert Catalyst running configs to Meraki port configurations via the Dashboard API
@@ -10,6 +14,15 @@ A desktop application for migrating Cisco Catalyst switch configurations to Cisc
 - **Auto-Detection** - Automatically detects interface naming formats (2-part and 3-part) across Catalyst platforms
 - **Dual Source Support** - Pull configs live from a switch via SSH or load from a saved config file
 - **Multi-Stack Support** - Handles switch stacks by mapping interfaces to the correct Meraki serial number
+
+## Architecture
+
+The application follows an **MVC (Model-View-Controller)** pattern:
+
+- **Models** use an observer pattern to notify views of data changes
+- **Views** are built with Tkinter and ttk, using a centralized theme inspired by Cisco branding
+- **Controllers** manage business logic, orchestrate network operations, and coordinate between models and views
+- Long-running operations (SSH connections, API calls) run in background threads to keep the UI responsive
 
 ## Supported Platforms
 
