@@ -11,7 +11,7 @@ A desktop application for migrating Cisco Catalyst switch configurations to Cisc
 - **Switch Migration** - Convert Catalyst running configs to Meraki port configurations via the Dashboard API
 - **Interface Comparison** - Compare port status between Catalyst and Meraki after migration
 - **MAC Address Comparison** - Compare MAC address tables to verify device connectivity post-migration
-- **Auto-Detection** - Automatically detects interface naming formats (2-part and 3-part) across Catalyst platforms
+- **Auto-Detection** - Automatically detects interface naming formats (2-part Fa 0/1 and 3-part Gi 1/0/1) across Catalyst platforms
 - **Dual Source Support** - Pull configs live from a switch via SSH or load from a saved config file
 - **Multi-Stack Support** - Handles switch stacks by mapping interfaces to the correct Meraki serial number
 
