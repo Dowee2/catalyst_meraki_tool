@@ -1,0 +1,80 @@
+{% extends "migration_tool/base.html" %}
+
+{% block title %}Step 1: Source - Migration Wizard{% endblock %}
+
+{% block content %}
+{% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+
+<h2 class="wizard-title">Step 1 of 4: Get Old Switch Information</h2>
+<p class="wizard-description">Choose how to get the switch configuration</p>
+
+<div class="info-box info-box-help">
+    <div class="info-box-title">Not sure which to choose?</div>
+    If you can access the switch from this computer, use "Connect over network".
+    Otherwise, export the running config from the switch and use "Configuration file".
+</div>
+
+<form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <div class="section">
+        <div class="d-flex gap-2 mb-2">
+            <label class="form-check form-check-inline">
+                <input type="radio" name="source_type" value="ip"
+                       {% if data.source_type == 'ip' %}checked{% endif %}
+                       onchange="toggleSource(this.value)">
+                Connect to switch over the network
+            </label>
+            <label class="form-check form-check-inline">
+                <input type="radio" name="source_type" value="file"
+                       {% if data.source_type == 'file' %}checked{% endif %}
+                       onchange="toggleSource(this.value)">
+                I have a configuration file
+            </label>
+        </div>
+
+        <!-- IP Source -->
+        <div id="ip-source" {% if data.source_type == 'file' %}style="display: none;"{% endif %}>
+            <div class="form-group">
+                <label for="catalyst_ip" class="form-label">Old switch address:</label>
+                <input type="text" id="catalyst_ip" name="catalyst_ip" class="form-control"
+                       value="{{ data.catalyst_ip }}" placeholder="192.168.1.1"
+                       pattern="^(\d{1,3}\.){3}\d{1,3}$" style="max-width: 300px;">
+                <p class="form-text">Enter the IP address of the Catalyst switch</p>
+            </div>
+        </div>
+
+        <!-- File Source -->
+        <div id="file-source" {% if data.source_type != 'file' %}style="display: none;"{% endif %}>
+            <div class="form-group">
+                <label for="config_file" class="form-label">Configuration file:</label>
+                <input type="file" id="config_file" name="config_file" class="form-control"
+                       accept=".txt,.cfg,.conf" style="max-width: 400px;">
+                {% if data.config_file_path %}
+                <p class="form-text">Previously selected: {{ data.config_file_path }}</p>
+                {% endif %}
+            </div>
+            <div class="form-group">
+                <label for="hostname" class="form-label">Switch name (hostname):</label>
+                <input type="text" id="hostname" name="hostname" class="form-control"
+                       value="{{ data.hostname }}" placeholder="e.g. SW-FLOOR1"
+                       style="max-width: 300px;">
+            </div>
+        </div>
+    </div>
+
+    <div class="wizard-actions">
+        <a href="{% url 'migration_tool:convert_cancel' %}" class="btn btn-secondary">Cancel</a>
+        <div class="wizard-actions-right">
+            <button type="submit" class="btn btn-primary">Next &rarr;</button>
+        </div>
+    </div>
+</form>
+
+<script>
+function toggleSource(value) {
+    document.getElementById('ip-source').style.display = value === 'ip' ? '' : 'none';
+    document.getElementById('file-source').style.display = value === 'file' ? '' : 'none';
+}
+</script>
+{% endblock %}

@@ -1,0 +1,226 @@
+{% extends "migration_tool/base.html" %}
+{% load static %}
+
+{% block title %}Step 1: Capture - Comparison Wizard{% endblock %}
+
+{% block content %}
+{% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+
+<h2 class="wizard-title">Step 1 of 3: Capture Old Switch Data</h2>
+<p class="wizard-description">Connect to your Catalyst switch and capture its current state</p>
+
+<!-- Source Selection -->
+<div class="section">
+    <div class="section-title">Data Source</div>
+    <div class="d-flex gap-2">
+        <label class="form-check form-check-inline">
+            <input type="radio" name="source_radio" value="new"
+                   {% if data.source_type == 'new' %}checked{% endif %}
+                   onchange="toggleCaptureSource('new')">
+            Capture new data from switch
+        </label>
+        <label class="form-check form-check-inline">
+            <input type="radio" name="source_radio" value="saved"
+                   {% if data.source_type == 'saved' %}checked{% endif %}
+                   onchange="toggleCaptureSource('saved')">
+            Use previously saved capture
+        </label>
+    </div>
+</div>
+
+<!-- New Capture Section -->
+<div id="new-capture" {% if data.source_type == 'saved' %}style="display: none;"{% endif %}>
+
+    <!-- IP Input -->
+    <div class="section">
+        <div class="form-group">
+            <label for="catalyst_ip" class="form-label">Old switch address:</label>
+            <input type="text" id="catalyst_ip" name="catalyst_ip" class="form-control"
+                   value="{{ data.catalyst_ip }}" placeholder="192.168.1.1"
+                   style="max-width: 300px;">
+        </div>
+    </div>
+
+    <!-- Credentials -->
+    <div class="section">
+        <div class="section-title">Login credentials</div>
+        {% if credentials %}
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="select_credential">
+            <div class="d-flex gap-1 align-center mb-1">
+                <select name="credential_index" class="form-control" style="max-width: 300px;">
+                    {% for cred in credentials %}
+                    <option value="{{ forloop.counter0 }}"
+                            {% if data.credential_index == forloop.counter0 %}selected{% endif %}>
+                        {{ cred.description }} ({{ cred.username }})
+                    </option>
+                    {% endfor %}
+                </select>
+                <button type="submit" class="btn btn-secondary btn-sm">Select</button>
+            </div>
+        </form>
+        {% endif %}
+
+        <details class="mt-1">
+            <summary class="text-sm" style="cursor: pointer; color: var(--primary);">Enter new credentials</summary>
+            <form method="post" class="mt-1">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="set_new_credential">
+                <div class="d-flex gap-1 align-center">
+                    <input type="text" name="new_username" class="form-control" placeholder="Username"
+                           value="{{ data.new_username }}" style="max-width: 150px;">
+                    <input type="password" name="new_password" class="form-control" placeholder="Password"
+                           style="max-width: 150px;">
+                    <button type="submit" class="btn btn-secondary btn-sm">Set</button>
+                </div>
+            </form>
+        </details>
+
+        {% if data.credential_index is not None or data.new_username %}
+        <p class="status-text status-success mt-1">
+            Credentials set: {{ data.new_username|default:"saved credential selected" }}
+        </p>
+        {% else %}
+        <p class="text-muted text-sm mt-1">No credentials selected</p>
+        {% endif %}
+    </div>
+
+    <!-- Compare Options -->
+    <div class="section">
+        <div class="section-title">What to compare</div>
+        <label class="form-check">
+            <input type="checkbox" id="compare_interfaces"
+                   {% if data.compare_interfaces %}checked{% endif %}>
+            Port status (up/down)
+        </label>
+        <label class="form-check">
+            <input type="checkbox" id="compare_macs"
+                   {% if data.compare_macs %}checked{% endif %}>
+            Connected devices (MAC addresses)
+        </label>
+    </div>
+
+    <!-- Capture Button and Console -->
+    <div class="section">
+        <div class="d-flex gap-1 align-center mb-1">
+            <button id="capture-btn" class="btn btn-primary" onclick="startCapture()">Capture Data</button>
+            <span id="capture-status" class="status-text"></span>
+        </div>
+        <div class="section-title">Capture Progress</div>
+        <div id="capture-console" class="console-output">Ready to capture...</div>
+    </div>
+</div>
+
+<!-- Saved Capture Section -->
+<div id="saved-capture" {% if data.source_type != 'saved' %}style="display: none;"{% endif %}>
+    <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="use_saved">
+        <div class="section">
+            <div class="section-title">Select saved capture</div>
+
+            <div class="form-group">
+                <label for="saved_interface_capture" class="form-label">Interface data:</label>
+                <select name="saved_interface_capture" id="saved_interface_capture" class="form-control">
+                    <option value="">-- None --</option>
+                    {% for cap in interface_captures %}
+                    <option value="{{ cap.filename }}"
+                            {% if data.saved_interface_capture == cap.filename %}selected{% endif %}>
+                        {{ cap.hostname }} ({{ cap.switch_ip }}) - {{ cap.datetime }} ({{ cap.count }} interfaces)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="saved_mac_capture" class="form-label">MAC address data:</label>
+                <select name="saved_mac_capture" id="saved_mac_capture" class="form-control">
+                    <option value="">-- None --</option>
+                    {% for cap in mac_captures %}
+                    <option value="{{ cap.filename }}"
+                            {% if data.saved_mac_capture == cap.filename %}selected{% endif %}>
+                        {{ cap.hostname }} ({{ cap.switch_ip }}) - {{ cap.datetime }} ({{ cap.count }} MAC entries)
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn btn-primary">Use Selected Captures</button>
+        </div>
+    </form>
+</div>
+
+<div class="wizard-actions">
+    <a href="{% url 'migration_tool:compare_cancel' %}" class="btn btn-secondary">Cancel</a>
+    <div class="wizard-actions-right">
+        <form method="post" style="display: inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="next">
+            <button type="submit" class="btn btn-primary">Next &rarr;</button>
+        </form>
+    </div>
+</div>
+
+<script src="{% static 'migration_tool/js/console.js' %}"></script>
+<script>
+function toggleCaptureSource(value) {
+    document.getElementById('new-capture').style.display = value === 'new' ? '' : 'none';
+    document.getElementById('saved-capture').style.display = value === 'saved' ? '' : 'none';
+}
+
+function startCapture() {
+    const btn = document.getElementById('capture-btn');
+    const statusEl = document.getElementById('capture-status');
+    const consoleEl = document.getElementById('capture-console');
+
+    const ip = document.getElementById('catalyst_ip').value.trim();
+    if (!ip) {
+        statusEl.textContent = 'Please enter a switch IP address';
+        statusEl.className = 'status-text status-error';
+        return;
+    }
+
+    const compareInterfaces = document.getElementById('compare_interfaces').checked;
+    const compareMacs = document.getElementById('compare_macs').checked;
+    if (!compareInterfaces && !compareMacs) {
+        statusEl.textContent = 'Please select at least one comparison type';
+        statusEl.className = 'status-text status-error';
+        return;
+    }
+
+    btn.disabled = true;
+    statusEl.textContent = 'Capturing...';
+    statusEl.className = 'status-text status-info';
+    consoleEl.textContent = '';
+
+    fetch("{% url 'migration_tool:api_start_capture' %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            catalyst_ip: ip,
+            compare_interfaces: compareInterfaces,
+            compare_macs: compareMacs,
+        }),
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            statusEl.textContent = data.error;
+            statusEl.className = 'status-text status-error';
+            btn.disabled = false;
+            return;
+        }
+        pollTask(data.task_id, consoleEl, statusEl, btn, 'Capture Data');
+    })
+    .catch(err => {
+        statusEl.textContent = 'Failed to start: ' + err;
+        statusEl.className = 'status-text status-error';
+        btn.disabled = false;
+    });
+}
+</script>
+{% endblock %}

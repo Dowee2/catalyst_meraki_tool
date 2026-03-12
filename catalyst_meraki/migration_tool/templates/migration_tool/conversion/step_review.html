@@ -1,0 +1,111 @@
+{% extends "migration_tool/base.html" %}
+{% load static %}
+
+{% block title %}Step 4: Review - Migration Wizard{% endblock %}
+
+{% block content %}
+{% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+
+<h2 class="wizard-title">Step 4 of 4: Ready to Migrate</h2>
+<p class="wizard-description">Review your settings and start the migration</p>
+
+<!-- Summary -->
+<div class="section">
+    <div class="section-title">Migration Summary</div>
+
+    <div class="summary-item">
+        <span class="summary-label">Source:</span>
+        <span class="summary-value">{{ summary.source }}</span>
+    </div>
+
+    {% if summary.login %}
+    <div class="summary-item">
+        <span class="summary-label">Login as:</span>
+        <span class="summary-value">{{ summary.login }}</span>
+    </div>
+    {% endif %}
+
+    {% if summary.file %}
+    <div class="summary-item">
+        <span class="summary-label">File:</span>
+        <span class="summary-value">{{ summary.file }}</span>
+    </div>
+    <div class="summary-item">
+        <span class="summary-label">Hostname:</span>
+        <span class="summary-value">{{ summary.hostname }}</span>
+    </div>
+    {% endif %}
+
+    <div class="summary-item">
+        <span class="summary-label">Interface format:</span>
+        <span class="summary-value">{{ summary.interface_format }}</span>
+    </div>
+
+    <div class="summary-item mt-1">
+        <span class="summary-label">Meraki serial numbers ({{ summary.serials|length }}):</span>
+        <ol style="padding-left: 1.5rem; margin-top: 0.25rem;">
+            {% for serial in summary.serials %}
+            <li><code>{{ serial }}</code></li>
+            {% endfor %}
+        </ol>
+    </div>
+</div>
+
+<!-- Progress Console -->
+<div class="section">
+    <div class="section-title">Progress</div>
+    <div id="console-output" class="console-output">Waiting to start...</div>
+    <div class="mt-1 d-flex align-center gap-1">
+        <span id="task-status" class="status-text"></span>
+    </div>
+</div>
+
+<div class="wizard-actions">
+    <a href="{% url 'migration_tool:convert_destination' %}" class="btn btn-secondary">&larr; Back</a>
+    <div class="wizard-actions-right">
+        <a href="{% url 'migration_tool:convert_cancel' %}" class="btn btn-secondary">Cancel</a>
+        <button id="start-btn" class="btn btn-primary" onclick="startMigration()">Start Migration</button>
+    </div>
+</div>
+
+<script src="{% static 'migration_tool/js/console.js' %}"></script>
+<script>
+function startMigration() {
+    const btn = document.getElementById('start-btn');
+    btn.disabled = true;
+    btn.textContent = 'Running...';
+
+    const statusEl = document.getElementById('task-status');
+    statusEl.textContent = 'Starting migration...';
+    statusEl.className = 'status-text status-info';
+
+    const consoleEl = document.getElementById('console-output');
+    consoleEl.textContent = '';
+
+    fetch("{% url 'migration_tool:api_start_conversion' %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            statusEl.textContent = data.error;
+            statusEl.className = 'status-text status-error';
+            btn.disabled = false;
+            btn.textContent = 'Start Migration';
+            return;
+        }
+        pollTask(data.task_id, consoleEl, statusEl, btn, 'Start Migration');
+    })
+    .catch(err => {
+        statusEl.textContent = 'Failed to start: ' + err;
+        statusEl.className = 'status-text status-error';
+        btn.disabled = false;
+        btn.textContent = 'Start Migration';
+    });
+}
+</script>
+{% endblock %}

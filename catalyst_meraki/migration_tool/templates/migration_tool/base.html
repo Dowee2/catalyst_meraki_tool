@@ -1,0 +1,41 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Catalyst to Meraki Migration Tool{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'migration_tool/css/theme.css' %}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>Catalyst to Meraki Migration Tool</h1>
+            <nav>
+                <a href="{% url 'migration_tool:dashboard' %}" class="nav-link">Dashboard</a>
+                &nbsp;&middot;&nbsp;
+                <a href="{% url 'migration_tool:settings' %}" class="nav-link">Settings</a>
+            </nav>
+        </header>
+
+        <main class="app-content">
+            {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                <li class="{{ message.tags }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </main>
+
+        <footer class="app-footer">
+            Catalyst to Meraki Migration Tool &middot; Built with Django
+        </footer>
+    </div>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

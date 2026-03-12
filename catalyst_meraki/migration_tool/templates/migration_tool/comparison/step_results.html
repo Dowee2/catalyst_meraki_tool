@@ -1,0 +1,172 @@
+{% extends "migration_tool/base.html" %}
+{% load static %}
+
+{% block title %}Step 3: Results - Comparison Wizard{% endblock %}
+
+{% block content %}
+{% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+
+<h2 class="wizard-title">Step 3 of 3: Compare and View Results</h2>
+<p class="wizard-description">Review the comparison between your old and new switches</p>
+
+{% if not api_key_set %}
+<div class="info-box info-box-warning">
+    <div class="info-box-title">API Key Required</div>
+    Please set your Meraki API key in <a href="{% url 'migration_tool:settings' %}">Settings</a> before comparing.
+</div>
+{% endif %}
+
+<!-- Compare Button -->
+<div class="d-flex gap-1 align-center mb-2">
+    <button id="compare-btn" class="btn btn-primary" onclick="startComparison()"
+            {% if not api_key_set %}disabled{% endif %}>
+        Start Comparison
+    </button>
+    <span id="compare-status" class="status-text"></span>
+</div>
+
+<!-- Results Tabs -->
+<div class="section">
+    <div class="tabs">
+        <button class="tab active" onclick="switchTab('interfaces', this)">Port Status</button>
+        <button class="tab" onclick="switchTab('macs', this)">Connected Devices</button>
+    </div>
+
+    <!-- Interface Results -->
+    <div id="tab-interfaces" class="tab-content active">
+        <p id="interface-summary" class="text-muted text-sm mb-1">No results yet</p>
+        <div style="overflow-x: auto;">
+            <table class="data-table" id="interface-table">
+                <thead>
+                    <tr>
+                        <th>Interface</th>
+                        <th>Old Status</th>
+                        <th>New Status</th>
+                        <th>Match</th>
+                    </tr>
+                </thead>
+                <tbody id="interface-tbody">
+                    <tr><td colspan="4" class="text-muted" style="text-align: center;">Run comparison to see results</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- MAC Results -->
+    <div id="tab-macs" class="tab-content">
+        <p id="mac-summary" class="text-muted text-sm mb-1">No results yet</p>
+        <div style="overflow-x: auto;">
+            <table class="data-table" id="mac-table">
+                <thead>
+                    <tr>
+                        <th>MAC Address</th>
+                        <th>Old Port</th>
+                        <th>New Port</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="mac-tbody">
+                    <tr><td colspan="4" class="text-muted" style="text-align: center;">Run comparison to see results</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Progress Console -->
+<div class="section">
+    <div class="section-title">Progress</div>
+    <div id="console-output" class="console-output">Ready to compare...</div>
+</div>
+
+<div class="wizard-actions">
+    <a href="{% url 'migration_tool:compare_meraki' %}" class="btn btn-secondary">&larr; Back</a>
+    <div class="wizard-actions-right">
+        <a href="{% url 'migration_tool:dashboard' %}" class="btn btn-secondary">Done</a>
+    </div>
+</div>
+
+<script src="{% static 'migration_tool/js/console.js' %}"></script>
+<script>
+function switchTab(tabId, tabEl) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tabId).classList.add('active');
+    tabEl.classList.add('active');
+}
+
+function startComparison() {
+    const btn = document.getElementById('compare-btn');
+    const statusEl = document.getElementById('compare-status');
+    const consoleEl = document.getElementById('console-output');
+
+    btn.disabled = true;
+    statusEl.textContent = 'Comparing...';
+    statusEl.className = 'status-text status-info';
+    consoleEl.textContent = '';
+
+    fetch("{% url 'migration_tool:api_start_comparison' %}", {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.error) {
+            statusEl.textContent = data.error;
+            statusEl.className = 'status-text status-error';
+            btn.disabled = false;
+            return;
+        }
+        pollTask(data.task_id, consoleEl, statusEl, btn, 'Start Comparison', function(taskResult) {
+            if (taskResult && taskResult.result) {
+                displayComparisonResults(taskResult.result);
+            }
+        });
+    })
+    .catch(err => {
+        statusEl.textContent = 'Failed to start: ' + err;
+        statusEl.className = 'status-text status-error';
+        btn.disabled = false;
+    });
+}
+
+function displayComparisonResults(result) {
+    // Interface results
+    if (result.interfaces) {
+        const tbody = document.getElementById('interface-tbody');
+        tbody.innerHTML = '';
+        let matchCount = 0;
+        result.interfaces.forEach(r => {
+            if (r.Match) matchCount++;
+            const row = document.createElement('tr');
+            row.className = r.Match ? 'row-match' : 'row-mismatch';
+            row.innerHTML = `<td>${r.Catalyst_Interface}</td><td>${r.Catalyst_Status}</td>` +
+                          `<td>${r.Meraki_Status}</td><td>${r.Match ? 'Yes' : 'No'}</td>`;
+            tbody.appendChild(row);
+        });
+        document.getElementById('interface-summary').textContent =
+            `Results: ${result.interfaces.length} interfaces, ${matchCount} matches, ${result.interfaces.length - matchCount} mismatches`;
+    }
+
+    // MAC results
+    if (result.macs) {
+        const tbody = document.getElementById('mac-tbody');
+        tbody.innerHTML = '';
+        let matchCount = 0;
+        result.macs.forEach(r => {
+            if (r.Status === 'Match') matchCount++;
+            const row = document.createElement('tr');
+            row.className = r.Status === 'Match' ? 'row-match' : (r.Status === 'Not Found in Meraki' ? 'row-not-found' : 'row-mismatch');
+            row.innerHTML = `<td>${r.MAC_Address}</td><td>${r.Catalyst_Port}</td>` +
+                          `<td>${r.Meraki_PortId}</td><td>${r.Status}</td>`;
+            tbody.appendChild(row);
+        });
+        document.getElementById('mac-summary').textContent =
+            `Results: ${result.macs.length} devices, ${matchCount} matches, ${result.macs.length - matchCount} differences`;
+    }
+}
+</script>
+{% endblock %}

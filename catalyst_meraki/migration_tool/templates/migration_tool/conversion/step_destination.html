@@ -1,0 +1,92 @@
+{% extends "migration_tool/base.html" %}
+
+{% block title %}Step 3: Destination - Migration Wizard{% endblock %}
+
+{% block content %}
+{% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+
+<h2 class="wizard-title">Step 3 of 4: Your New Meraki Switch</h2>
+<p class="wizard-description">Enter the details for your new Meraki switch</p>
+
+<div class="section">
+    <div class="section-title">Meraki Switch Serial Numbers</div>
+
+    <div class="info-box info-box-info">
+        Enter the serial number(s) of your new Meraki switch(es).
+        For switch stacks, enter them in the correct order matching the stack members.
+    </div>
+
+    <!-- Current serials list -->
+    {% if data.meraki_serials %}
+    <ul class="serial-list mb-2">
+        {% for serial in data.meraki_serials %}
+        <li>
+            <span>
+                <span class="text-muted text-sm">{{ forloop.counter }}.</span>
+                <span class="serial-number">{{ serial }}</span>
+            </span>
+            <span class="serial-actions">
+                <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="move_up">
+                    <input type="hidden" name="serial_index" value="{{ forloop.counter0 }}">
+                    <button type="submit" class="btn btn-secondary btn-sm" {% if forloop.first %}disabled{% endif %}>&#x25B2;</button>
+                </form>
+                <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="move_down">
+                    <input type="hidden" name="serial_index" value="{{ forloop.counter0 }}">
+                    <button type="submit" class="btn btn-secondary btn-sm" {% if forloop.last %}disabled{% endif %}>&#x25BC;</button>
+                </form>
+                <form method="post" style="display: inline;">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="remove_serial">
+                    <input type="hidden" name="serial_index" value="{{ forloop.counter0 }}">
+                    <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+                </form>
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted text-sm mb-2">No serial numbers added yet.</p>
+    {% endif %}
+
+    <!-- Add serial -->
+    <form method="post" class="d-flex gap-1 align-center mb-2">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_serial">
+        <input type="text" name="new_serial" class="form-control" placeholder="XXXX-XXXX-XXXX"
+               style="max-width: 250px; text-transform: uppercase;">
+        <button type="submit" class="btn btn-primary btn-sm">Add Serial</button>
+    </form>
+
+    <!-- Bulk import -->
+    <details>
+        <summary class="text-sm" style="cursor: pointer; color: var(--primary);">Import multiple serials</summary>
+        <form method="post" class="mt-1">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="import_serials">
+            <div class="form-group">
+                <textarea name="import_text" class="form-control" rows="3"
+                          placeholder="Paste serial numbers, one per line or comma-separated"></textarea>
+            </div>
+            <button type="submit" class="btn btn-secondary btn-sm">Import</button>
+        </form>
+    </details>
+</div>
+
+<div class="wizard-actions">
+    <div>
+        <a href="{% url 'migration_tool:convert_credentials' %}" class="btn btn-secondary">&larr; Back</a>
+    </div>
+    <div class="wizard-actions-right">
+        <a href="{% url 'migration_tool:convert_cancel' %}" class="btn btn-secondary">Cancel</a>
+        <form method="post" style="display: inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="next">
+            <button type="submit" class="btn btn-primary">Next &rarr;</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

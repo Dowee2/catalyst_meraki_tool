@@ -1,0 +1,38 @@
+{% extends "migration_tool/base.html" %}
+
+{% block title %}Dashboard - Catalyst to Meraki Migration Tool{% endblock %}
+
+{% block content %}
+<h2 class="wizard-title" style="margin-bottom: 0.25rem;">Welcome</h2>
+<p class="text-muted">Choose a task to get started</p>
+
+<div class="task-cards">
+    <a href="{% url 'migration_tool:convert_source' %}" class="task-card">
+        <div class="task-card-icon">&#x1F504;</div>
+        <div class="task-card-title">Migrate Switch</div>
+        <div class="task-card-desc">Convert a Catalyst switch configuration to Meraki port settings</div>
+    </a>
+
+    <a href="{% url 'migration_tool:compare_capture' %}" class="task-card">
+        <div class="task-card-icon">&#x1F50D;</div>
+        <div class="task-card-title">Compare Switches</div>
+        <div class="task-card-desc">Compare port status and MAC addresses between old and new switches</div>
+    </a>
+
+    <a href="{% url 'migration_tool:settings' %}" class="task-card">
+        <div class="task-card-icon">&#x2699;</div>
+        <div class="task-card-title">Settings</div>
+        <div class="task-card-desc">Configure your API key and manage switch credentials</div>
+    </a>
+</div>
+
+<div class="card mt-3">
+    <div class="card-title">Quick Tips</div>
+    <ul style="padding-left: 1.25rem; color: var(--text-secondary); font-size: var(--font-size-sm); line-height: 1.8;">
+        <li>Set your Meraki API key in <strong>Settings</strong> before migrating</li>
+        <li>Save your switch credentials for faster access</li>
+        <li>Interface format (2-part / 3-part) is auto-detected from the configuration</li>
+        <li>For switch stacks, enter serial numbers in order matching the stack members</li>
+    </ul>
+</div>
+{% endblock %}

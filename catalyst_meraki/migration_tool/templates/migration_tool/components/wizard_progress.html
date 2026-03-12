@@ -1,0 +1,19 @@
+{% comment %}
+Wizard progress bar component.
+Usage: {% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+{% endcomment %}
+<div class="wizard-progress">
+    <div class="wizard-step-indicator">
+        {% for step in steps %}
+        <div class="wizard-step-group">
+            <div class="wizard-step-dot {% if forloop.counter < current %}completed{% elif forloop.counter == current %}active{% endif %}">
+                {% if forloop.counter < current %}&#10003;{% else %}{{ forloop.counter }}{% endif %}
+            </div>
+            <div class="wizard-step-label {% if forloop.counter == current %}active{% endif %}">{{ step }}</div>
+        </div>
+        {% if not forloop.last %}
+        <div class="wizard-step-line {% if forloop.counter < current %}completed{% endif %}"></div>
+        {% endif %}
+        {% endfor %}
+    </div>
+</div>

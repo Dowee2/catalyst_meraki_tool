@@ -1,0 +1,70 @@
+{% extends "migration_tool/base.html" %}
+
+{% block title %}Step 2: Meraki Details - Comparison Wizard{% endblock %}
+
+{% block content %}
+{% include "migration_tool/components/wizard_progress.html" with steps=steps current=current_step %}
+
+<h2 class="wizard-title">Step 2 of 3: Enter New Meraki Switch Details</h2>
+<p class="wizard-description">Enter the serial numbers of your Meraki switches</p>
+
+<!-- Comparison Summary -->
+<div class="section">
+    <div class="section-title">Comparison Summary</div>
+    {% for line in summary_lines %}
+    <p class="summary-item">{{ line }}</p>
+    {% empty %}
+    <p class="text-muted text-sm">No capture data available.</p>
+    {% endfor %}
+</div>
+
+<!-- Serial Numbers -->
+<div class="section">
+    <div class="section-title">Meraki Switch Serial Numbers</div>
+    <div class="info-box info-box-info">
+        Enter the serial number(s) of your new Meraki switch(es).
+        These should match the switches that replaced your old Catalyst switch.
+    </div>
+
+    {% if data.meraki_serials %}
+    <ul class="serial-list mb-2">
+        {% for serial in data.meraki_serials %}
+        <li>
+            <span>
+                <span class="text-muted text-sm">{{ forloop.counter }}.</span>
+                <span class="serial-number">{{ serial }}</span>
+            </span>
+            <form method="post" style="display: inline;">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="remove_serial">
+                <input type="hidden" name="serial_index" value="{{ forloop.counter0 }}">
+                <button type="submit" class="btn btn-danger btn-sm">Remove</button>
+            </form>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-muted text-sm mb-2">No serial numbers added yet.</p>
+    {% endif %}
+
+    <form method="post" class="d-flex gap-1 align-center">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="add_serial">
+        <input type="text" name="new_serial" class="form-control" placeholder="XXXX-XXXX-XXXX"
+               style="max-width: 250px; text-transform: uppercase;">
+        <button type="submit" class="btn btn-primary btn-sm">Add Serial</button>
+    </form>
+</div>
+
+<div class="wizard-actions">
+    <a href="{% url 'migration_tool:compare_capture' %}" class="btn btn-secondary">&larr; Back</a>
+    <div class="wizard-actions-right">
+        <a href="{% url 'migration_tool:compare_cancel' %}" class="btn btn-secondary">Cancel</a>
+        <form method="post" style="display: inline;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="next">
+            <button type="submit" class="btn btn-primary">Next &rarr;</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
