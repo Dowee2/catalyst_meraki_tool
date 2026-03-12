@@ -6,6 +6,17 @@ A desktop application for migrating Cisco Catalyst switch configurations to Cisc
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
 
+> **Note:** This is the **Tkinter (desktop GUI)** frontend. A web-based version built with Django is available on the [`Django-Frontend`](../../tree/Django-Frontend) branch.
+
+## Available Frontends
+
+| Branch | Frontend | Description |
+|--------|----------|-------------|
+| `main` | Tkinter | Desktop GUI (this branch) |
+| `Django-Frontend` | Django | Web-based interface |
+
+Both branches share the same backend logic (models, scripts, utils). Choose the branch that matches your preferred interface.
+
 ## Features
 
 - **Switch Migration** - Convert Catalyst running configs to Meraki port configurations via the Dashboard API
