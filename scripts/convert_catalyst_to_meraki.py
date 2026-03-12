@@ -24,8 +24,8 @@ def parse_interfaces(config):
     """
     interfaces = {}
     interface_sections = re.findall(r'interface (\S+)(.*?)!', config, re.DOTALL)
-    for intf, cfg in interface_sections:
-        interfaces[intf] = cfg
+    for interface, config in interface_sections:
+        interfaces[interface] = config
     return interfaces
 
 

@@ -142,7 +142,7 @@ def connect_with_retry(ip_address, credentials=None, device_type='cisco_ios',
         return None, None
 
     if enable_secret is None:
-        enable_secret = os.getenv('NETMIKO_ENABLE_SECRET', 'Southwire!')
+        enable_secret = os.getenv('NETMIKO_ENABLE_SECRET')
 
     if timeout is None:
         timeout = int(os.getenv('NETMIKO_DEFAULT_TIMEOUT', '60'))
