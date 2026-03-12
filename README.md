@@ -1,10 +1,22 @@
 # Catalyst to Meraki Migration Tool
 
-A desktop application for migrating Cisco Catalyst switch configurations to Cisco Meraki switches. Built with Python and Tkinter, the tool provides a guided wizard-based workflow for configuration conversion and post-migration comparison.
+A web application for migrating Cisco Catalyst switch configurations to Cisco Meraki switches. Built with Python and Django, the tool provides a guided wizard-based workflow for configuration conversion and post-migration comparison.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue)
+![Django](https://img.shields.io/badge/Django-4.2%2B-green)
 ![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)
 ![License](https://img.shields.io/badge/License-MIT-green)
+
+> **Note:** This is the **Django (web-based)** frontend. A desktop GUI version built with Tkinter is available on the [`main`](../../tree/main) branch.
+
+## Available Frontends
+
+| Branch | Frontend | Description |
+|--------|----------|-------------|
+| `main` | Tkinter | Desktop GUI (original) |
+| `Django-Frontend` | Django | Web-based interface (this branch) |
+
+Both branches share the same backend logic (models, scripts, utils). Choose the branch that matches your preferred interface.
 
 ## Features
 
@@ -17,12 +29,12 @@ A desktop application for migrating Cisco Catalyst switch configurations to Cisc
 
 ## Architecture
 
-The application follows an **MVC (Model-View-Controller)** pattern:
+The application follows Django's **MTV (Model-Template-View)** pattern, which maps to MVC:
 
-- **Models** use an observer pattern to notify views of data changes
-- **Views** are built with Tkinter and ttk, using a centralized theme inspired by Cisco branding
-- **Controllers** manage business logic, orchestrate network operations, and coordinate between models and views
-- Long-running operations (SSH connections, API calls) run in background threads to keep the UI responsive
+- **Models** - Shared backend data models (credentials, serials, switch data, progress)
+- **Templates** - HTML templates with Cisco-inspired CSS theme, wizard step components
+- **Views** - Django views handle request logic, orchestrate network operations, and coordinate between models and templates
+- Long-running operations (SSH connections, API calls) run via a background task manager to keep the web UI responsive
 
 ## Supported Platforms
 
@@ -52,7 +64,7 @@ Create and activate a virtual environment, then install dependencies:
 ```bash
 python -m venv venv
 venv\Scripts\activate
-pip install meraki netmiko pandas
+pip install django meraki netmiko pandas
 ```
 
 Set your Meraki API key using one of:
@@ -63,8 +75,11 @@ Set your Meraki API key using one of:
 ## Usage
 
 ```bash
-python app.py
+python manage.py migrate
+python manage.py runserver
 ```
+
+Then open `http://127.0.0.1:8000/` in your browser.
 
 The application opens a dashboard with three options:
 
@@ -91,41 +106,51 @@ Capture and compare MAC address tables to confirm that devices are correctly con
 
 ```
 catalyst_meraki_tool/
-├── app.py                     # Application entry point
+├── manage.py                              # Django management entry point
+├── catalyst_meraki/                       # Django project settings
+│   ├── settings.py
+│   ├── urls.py
+│   └── wsgi.py
+│   └── migration_tool/                    # Django app
+│       ├── views/                         # Django views (request handlers)
+│       │   ├── dashboard.py
+│       │   ├── conversion.py
+│       │   ├── comparison.py
+│       │   ├── settings.py
+│       │   └── api.py
+│       ├── templates/migration_tool/      # HTML templates
+│       │   ├── base.html
+│       │   ├── dashboard.html
+│       │   ├── settings.html
+│       │   ├── components/                # Reusable template components
+│       │   ├── conversion/                # Conversion wizard steps
+│       │   └── comparison/                # Comparison wizard steps
+│       ├── static/migration_tool/         # CSS and JavaScript
+│       │   ├── css/theme.css
+│       │   └── js/console.js
+│       ├── forms/                         # Django forms
+│       ├── task_manager.py                # Background task execution
+│       └── urls.py                        # URL routing
 ├── config/
-│   ├── constants.py           # Device defaults, timeouts, VLAN settings
-│   ├── script_types.py        # Script type definitions
-│   └── theme.py               # UI colors, fonts, and styling
-├── controllers/
-│   ├── app_controller.py      # Main application orchestrator
-│   ├── conversion_controller.py
-│   ├── comparison_controller.py
-│   └── settings_controller.py
+│   ├── constants.py                       # Device defaults, timeouts, VLAN settings
+│   └── script_types.py                    # Script type definitions
 ├── models/
-│   ├── credentials_model.py   # In-memory credential storage
-│   ├── serials_model.py       # Meraki serial number management
+│   ├── credentials_model.py               # In-memory credential storage
+│   ├── serials_model.py                   # Meraki serial number management
 │   ├── progress_model.py
-│   └── switch_data_model.py   # Saved capture data (CSV + metadata)
-├── views/
-│   ├── main_window.py         # Main application window
-│   ├── dashboard_view.py      # Home screen with task cards
-│   ├── settings_view.py
-│   ├── components/            # Reusable UI components
-│   ├── dialogs/               # Modal dialogs
-│   ├── wizard/                # Base wizard framework
-│   └── wizards/               # Conversion and comparison wizards
+│   └── switch_data_model.py               # Saved capture data (CSV + metadata)
 ├── scripts/
 │   ├── convert_catalyst_to_meraki.py
 │   ├── compare_interface_status.py
 │   └── compare_mac_address_table.py
 ├── utils/
-│   ├── interface_parser.py    # Interface name parsing & format detection
-│   ├── netmiko_utils.py       # SSH connection helpers
-│   ├── port_config_builder.py # Catalyst → Meraki config mapping
-│   ├── script_loader.py       # Dynamic module loading
-│   ├── workers.py             # Background threading
-│   └── console_redirect.py    # Stdout → UI redirection
-└── saved_data/                # Saved interface/MAC captures
+│   ├── interface_parser.py                # Interface name parsing & format detection
+│   ├── netmiko_utils.py                   # SSH connection helpers
+│   ├── port_config_builder.py             # Catalyst → Meraki config mapping
+│   ├── config_manager.py                  # API key persistence
+│   └── script_loader.py                   # Dynamic module loading
+├── demo_configs/                          # Example Catalyst configurations
+└── saved_data/                            # Saved interface/MAC captures
 ```
 
 ## License
